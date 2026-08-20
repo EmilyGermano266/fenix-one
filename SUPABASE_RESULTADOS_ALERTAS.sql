@@ -1,0 +1,6 @@
+create table if not exists public.consultant_results (id uuid primary key default gen_random_uuid(), profile_id uuid not null, period_month date not null, migrations integer not null default 0, revenue_cents bigint not null default 0, updated_by uuid, created_at timestamptz default now(), updated_at timestamptz default now(), unique(profile_id,period_month));
+create table if not exists public.routine_alert_responses (id uuid primary key default gen_random_uuid(), profile_id uuid not null, response_date date not null, alert_id text not null, alert_text text not null, response text not null check(response in ('FIZ','NAO_CONSEGUI')), created_at timestamptz default now(), unique(profile_id,response_date,alert_id));
+alter table public.consultant_results enable row level security; alter table public.routine_alert_responses enable row level security;
+create policy "results read" on public.consultant_results for select to authenticated using (true);
+create policy "results write" on public.consultant_results for all to authenticated using (true) with check (true);
+create policy "alert own" on public.routine_alert_responses for all to authenticated using (profile_id=auth.uid()) with check (profile_id=auth.uid());

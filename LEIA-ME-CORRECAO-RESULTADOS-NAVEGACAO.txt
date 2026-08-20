@@ -1,0 +1,13 @@
+FÊNIX ONE — CORREÇÃO RESULTADOS / NAVEGAÇÃO
+
+- Mantido apenas o botão Resultados integrado ao menu lateral.
+- Removida a criação do botão RESULTADOS duplicado da v11.
+- A página Resultados agora existe diretamente no index.html.
+- Corrigida a navegação de TODAS as abas.
+- A navegação não deixa mais a classe hidden presa nas telas.
+- Seletor de consultores em Resultados carrega todos os colaboradores ativos,
+  sem depender da nomenclatura exata do cargo.
+- Mantidos os cálculos, proposta, alertas, Supabase e demais ajustes já existentes.
+- Cache do PWA atualizado.
+
+O SQL de Resultados já executado no Supabase não precisa ser executado novamente.

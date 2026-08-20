@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fênix One — Equipe Fênix</title>
+  <meta name="description" content="Sistema comercial inteligente da Equipe Fênix." />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <meta name="theme-color" content="#660099" />
+  <meta name="application-name" content="Fênix One" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Fênix One" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="brand-mark">🔥</div>
+      <p class="eyebrow">EQUIPE FÊNIX</p>
+      <h1>Fênix One</h1>
+      <p class="login-subtitle">Menos retrabalho. Mais vendas.</p>
+      <form id="loginForm" class="stack">
+        <label>E-mail<input id="loginEmail" type="email" autocomplete="email" required placeholder="seu@email.com" /></label>
+        <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required placeholder="••••••••" /></label>
+        <button class="btn btn-primary" type="submit">Entrar no Fênix</button>
+<button id="forgotPasswordBtn" class="btn btn-link" type="button">Esqueci minha senha</button>
+        <button id="installAppLoginBtn" class="btn btn-secondary pwa-install-btn hidden" type="button">📲 Instalar Fênix One</button>
+      </form>
+      <p id="loginMessage" class="form-message"></p>
+    </div>
+  </section>
+
+  <section id="recoveryScreen" class="login-screen hidden">
+    <div class="login-card">
+      <div class="brand-mark">🔐</div>
+      <p class="eyebrow">FÊNIX ONE</p>
+      <h1>Criar nova senha</h1>
+      <p class="login-subtitle">Digite uma nova senha para acessar o Fênix.</p>
+
+      <form id="recoveryForm" class="stack">
+        <label>Nova senha
+          <input id="newPassword" type="password" minlength="8" required placeholder="Mínimo 8 caracteres" />
+        </label>
+        <label>Confirmar nova senha
+          <input id="confirmNewPassword" type="password" minlength="8" required placeholder="Digite novamente" />
+        </label>
+        <button id="saveNewPasswordBtn" class="btn btn-primary" type="submit">Salvar nova senha</button>
+      </form>
+
+      <p id="recoveryMessage" class="form-message"></p>
+    </div>
+  </section>
+
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><span class="sidebar-fire">🔥</span><div><strong>Fênix One</strong><small>Equipe Fênix</small></div></div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboardView">📊 <span>Dashboard</span></button>
+        <button class="nav-item" data-view="calculatorView">🧮 <span>Nova proposta</span></button>
+        <button class="nav-item" data-view="proposalsView">📄 <span>Propostas</span></button>
+        <button class="nav-item" data-view="faqView">💬 <span>Dúvidas Frequentes</span></button>
+        <button class="nav-item" data-view="devicesProposalView">📱 <span>Proposta de Aparelhos</span></button>
+        <button id="navResults" class="nav-item" data-view="resultsView">📊 <span>Resultados</span></button>
+        <button id="navNotifications" class="nav-item supervisor-only" data-view="notificationsView">🔔 <span>Notificações</span><b id="notificationBadge" class="badge hidden">0</b></button>
+        <button class="nav-item supervisor-only" data-view="adminView">⚙️ <span>Administração</span></button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-mini"><div id="userAvatar" class="avatar">E</div><div><strong id="sidebarUserName">Usuário</strong><small id="sidebarUserRole">perfil</small></div></div>
+        <button id="installAppBtn" class="btn btn-secondary btn-block pwa-install-btn hidden" type="button">📲 Instalar aplicativo</button>
+        <button id="logoutBtn" class="btn btn-ghost btn-block">Sair</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">FÊNIX ONE</p><h2 id="pageTitle">Dashboard</h2></div>
+        <div class="topbar-actions"><span id="currentDateLabel" class="date-pill"></span><button id="themeToggleBtn" class="btn btn-ghost" type="button">🌙 Modo escuro</button></div>
+      </header>
+
+      <section id="dashboardView" class="view active">
+        <div class="welcome">
+          <div>
+            <p class="eyebrow">BEM-VINDA(O)</p>
+            <h3 id="welcomeName">Olá!</h3>
+            <p>Acompanhe sua produção e crie propostas com mais segurança.</p>
+          </div>
+          <div class="welcome-mark">🔥</div>
+        </div>
+
+        <div id="teamNewsCard" class="panel dashboard-highlight hidden">
+          <div class="panel-head">
+            <div><p class="eyebrow">NOVIDADES</p><h3 id="teamNewsTitle">Novidades da Equipe</h3></div>
+          </div>
+          <p id="teamNewsMessage"></p><div id="teamNewsRotation" class="news-rotation hidden"><button id="teamNewsPrevBtn" type="button" class="mini-btn">‹</button><span id="teamNewsCounter"></span><button id="teamNewsNextBtn" type="button" class="mini-btn">›</button></div>
+        </div>
+
+        <div class="dashboard-materials-grid">
+          <div id="bookCard" class="panel material-card material-card-featured hidden">
+            <div class="material-icon material-icon-book">📘</div>
+            <div class="material-content">
+              <p class="eyebrow">BOOK DO MÊS</p>
+              <h3 id="bookTitle">Book do mês</h3>
+              <p id="bookMeta"></p>
+              <small>Consulte rapidamente as ofertas e informações do mês.</small>
+            </div>
+            <button id="openBookBtn" class="btn btn-primary material-open-btn" type="button">Abrir Book <span>›</span></button>
+          </div>
+          <div id="deviceListCard" class="panel material-card material-card-secondary hidden">
+            <div class="material-icon">📱</div>
+            <div class="material-content">
+              <p class="eyebrow">BOOK DE APARELHOS</p>
+              <h3 id="deviceListTitle">Book de Aparelhos</h3>
+              <p id="deviceListMeta"></p>
+            </div>
+            <button id="openDeviceListBtn" class="btn btn-secondary" type="button">Abrir Book</button>
+          </div>
+          <div id="communicationsCard" class="panel material-card material-card-secondary communications-card hidden">
+            <div class="material-icon">📣</div>
+            <div class="material-content">
+              <p class="eyebrow">COMUNICADOS VIVO</p>
+              <h3>Comunicados recentes</h3>
+              <p id="communicationsMeta"></p>
+            </div>
+            <button id="openCommunicationsBtn" class="btn btn-secondary" type="button">Ver comunicados</button>
+          </div>
+        </div>
+
+        <div class="dashboard-toolbar">
+          <div class="filter-row dashboard-main-filters">
+            <label>Período
+              <select id="dashboardPeriod">
+                <option value="today">Hoje</option>
+                <option value="week">7 dias</option>
+                <option value="month" selected>Mês atual</option>
+                <option value="3months">3 meses</option>
+                <option value="6months">6 meses</option>
+                <option value="selected_month">Mês selecionado</option>
+                <option value="all">Todo período</option>
+              </select>
+            </label>
+            <label id="dashboardMonthWrapper" class="hidden">Mês
+              <input id="dashboardMonthFilter" type="month">
+            </label>
+            <label class="supervisor-only">Consultor
+              <select id="dashboardConsultantFilter"><option value="">Todos os consultores</option></select>
+            </label>
+          </div>
+          <div class="supervisor-only dashboard-actions">
+            <button id="clearDashboardBtn" class="btn btn-secondary" type="button">Limpar Dashboard</button>
+            <button id="restoreDashboardBtn" class="btn btn-ghost" type="button">Restaurar Dashboard</button>
+          </div>
+        </div>
+
+        <div class="status-metrics-grid dashboard-approved-only">
+          <article class="status-metric-card status-metric-approved-only">
+            <div class="status-metric-head">
+              <div class="status-label-wrap">
+                <span class="metric-icon metric-icon-approved">✓</span>
+                <span class="status-pill status-Aprovada">Aprovadas</span>
+              </div>
+              <strong id="metricApproved">0</strong>
+            </div>
+            <div class="status-metric-values">
+              <div><span>Valor total</span><strong id="approvedTotal">R$ 0,00</strong></div>
+              <div><span>Migrações</span><strong id="approvedMigration">0</strong></div>
+              <div><span>Receita</span><strong id="approvedRevenue">R$ 0,00</strong></div>
+            </div>
+          </article>
+        </div>
+
+        <div class="metrics-grid compact-metrics">
+          <article class="metric kpi-card"><div class="kpi-icon">💰</div><div><span>Valor aprovado</span><strong id="metricValue">R$ 0,00</strong></div></article>
+          <article class="metric kpi-card"><div class="kpi-icon kpi-blue">↔</div><div><span>Migrações aprovadas</span><strong id="metricMigrations">0</strong></div></article>
+          <article class="metric kpi-card"><div class="kpi-icon kpi-orange">▦</div><div><span>E-SIMs aprovados</span><strong id="metricEsims">0</strong></div></article>
+        </div>
+
+        <div class="dashboard-two-cols">
+          <div class="panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">RANKING</p><h3>Ranking de propostas enviadas</h3></div>
+              <select id="rankingPeriod">
+                <option value="hour">Hora atual</option>
+                <option value="day">Dia</option>
+                <option value="month" selected>Mês</option>
+                <option value="all">Todo período</option>
+              </select>
+            </div>
+            <div id="rankingList" class="ranking-list"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">ÚLTIMAS MOVIMENTAÇÕES</p><h3>Propostas recentes</h3></div>
+              <button class="btn btn-secondary" data-view-button="proposalsView">Ver todas</button>
+            </div>
+            <div id="recentProposals" class="table-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="calculatorView" class="view">
+        <div class="section-heading"><div><p class="eyebrow">CALCULADORA COMERCIAL</p><h3>Nova proposta</h3><p>Preencha uma vez. O Fênix calcula e monta a proposta.</p></div>
+          <button class="btn btn-secondary refresh-view-btn" type="button" data-refresh-view="calculatorView">↻ Atualizar</button><button id="clearProposalBtn" class="btn btn-secondary">Limpar</button></div>
+        <form id="proposalForm" novalidate>
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">ETAPA 1</p><h3>Cliente e cenário atual</h3></div></div>
+            <div class="form-grid cols-3">
+              <label>Razão Social<input id="clientName" required placeholder="Empresa ABC LTDA" /></label>
+              <label>CNPJ<input id="cnpj" required inputmode="numeric" maxlength="18" placeholder="00.000.000/0000-00" /><small id="cnpjHelp"></small></label>
+              <label>Consultor<input id="consultantName" readonly /></label>
+              <label>Data da proposta<input id="proposalDate" type="date" required /></label>
+              <label>Validade<input id="validityDate" type="date" required /></label>
+              <label>Franquia atual (GB)<input id="currentFranchise" type="number" min="0" step="0.01" required placeholder="263" /></label>
+              <label>Faturamento atual<input id="currentBilling" class="money-input" inputmode="decimal" required placeholder="R$ 0,00" /></label>
+              <label>Reajuste<select id="adjustmentPercent"><option value="0">0%</option><option value="5">5%</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option><option value="25">25%</option><option value="30">30%</option><option value="35">35%</option><option value="40">40%</option></select></label>
+              <label>Faturamento limite<input id="billingLimit" class="money-input" inputmode="decimal" required placeholder="R$ 0,00" /></label>
+            </div>
+            <div class="summary-strip">
+              <div><span>Faturamento reajustado</span><strong id="adjustedBillingDisplay">R$ 0,00</strong></div>
+              <div><span>Limite</span><strong id="billingLimitDisplay">R$ 0,00</strong></div>
+              <div><span>Composição elegível</span><strong id="eligibleTotalDisplay">R$ 0,00</strong></div>
+              <div id="limitStatusBox" class="status-box warning"><span>Status do limite</span><strong id="limitStatusText">Informe o limite</strong></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">ETAPA 2</p><h3>Móvel — Migrações e E-SIM</h3></div></div>
+            <div class="inline-builder">
+              <label>Plano<select id="mobilePlanSelect"></select></label>
+              <label>Tipo<select id="mobileType"><option value="migration">Migração</option><option value="esim">E-SIM</option><option value="new_line">Linha Nova</option></select></label>
+              <label>Quantidade<input id="mobileQuantity" type="number" min="1" value="1" /></label>
+              <label id="mobileMWrapper">M das linhas<input id="mobileM" placeholder="Ex.: 17 e 18" /></label>
+              <button id="addMobileBtn" type="button" class="btn btn-primary">Adicionar</button>
+            </div>
+            <div id="mobileItems" class="items-list empty-state">Nenhuma linha adicionada.</div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">ETAPA 3</p><h3>Pacotes SME</h3><p>Bônus de franquia com custo R$ 0,00.</p></div></div>
+            <div class="inline-builder compact"><label>Pacote<select id="smeSelect"></select></label><label>Quantidade<input id="smeQuantity" type="number" min="1" value="1" /></label><button id="addSmeBtn" type="button" class="btn btn-secondary">Adicionar SME</button></div>
+            <div id="smeItems" class="items-list empty-state">Nenhum pacote SME adicionado.</div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">ETAPA 4</p><h3>Serviços já ativos</h3><p>Marque os serviços que o cliente possui atualmente, informe o valor pago e escolha se deseja manter no Plano Novo.</p></div></div>
+            <div id="servicesGrid" class="services-grid"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><p class="eyebrow">ETAPA 5</p><h3>Soluções Contratadas</h3><p>Inclua Banda Larga, Link Dedicado, VVN, Fixo, Internet Móvel (Chip de Dados), Vivo Travel, MDM e Aparelhos.</p></div></div>
+            <div class="product-builder">
+              <label>Categoria<select id="productCategory">
+      <option value="banda_larga">Banda Larga</option>
+      <option value="link_dedicado">Link Dedicado</option>
+      <option value="vvn">VVN</option>
+      <option value="fixo">Fixo</option>
+      <option value="internet_movel">Internet Móvel (Chip de Dados)</option>
+      <option value="vivo_travel">Vivo Travel</option>
+      <option value="mdm">MDM</option>
+      <option value="aparelho">Aparelho</option>
+    </select></label>
+              <label id="catalogProductWrapper">Produto<select id="productSelect"></select></label>
+      <label id="deviceModelWrapper" class="hidden">Modelo do aparelho<input id="deviceModel" placeholder="Ex.: Samsung Galaxy A56"></label>
+              <label>Tipo<select id="productType"><option value="new">Produto Novo</option><option value="migration">Migração</option></select></label>
+              <label>Quantidade<input id="productQuantity" type="number" min="1" value="1" /></label>
+      <label id="deviceTotalWrapper" class="hidden">Valor total do aparelho<input id="deviceTotalValue" class="money-input" inputmode="decimal" placeholder="R$ 0,00"></label>
+      <label id="deviceInstallmentsWrapper" class="hidden">Parcelamento<select id="deviceInstallments"><option value="10">10x</option><option value="24">24x</option></select></label>
+      <label id="deviceInstallmentValueWrapper" class="hidden">Parcela mensal<input id="deviceInstallmentValue" readonly placeholder="R$ 0,00"></label>
+      <label id="deviceRevenueWrapper" class="hidden">Venda Alta / Receita?<select id="deviceCountsRevenue"><option value="yes">Sim</option><option value="no">Não</option></select></label>
+      <button id="addProductBtn" type="button" class="btn btn-secondary">Adicionar produto</button>
+            </div>
+            <div id="productItems" class="items-list empty-state">Nenhum produto adicionado.</div>
+          </div>
+
+          <div class="panel total-panel">
+            <div class="panel-head"><div><p class="eyebrow">RESUMO</p><h3>Conferência da negociação</h3></div></div>
+            <div class="comparison-grid">
+              <article><span>PLANO ATUAL</span><strong id="currentPlanTotal">R$ 0,00</strong><small id="currentPlanMeta">0 linhas • 0 GB</small></article>
+              <article class="highlight"><span>PLANO NOVO</span><strong id="newPlanTotal">R$ 0,00</strong><small id="newPlanMeta">0 linhas • 0 GB</small></article>
+            </div>
+            <div id="benefitsPreview" class="benefits-preview"></div>
+            <div class="actions-end"><button id="previewProposalBtn" type="button" class="btn btn-primary btn-lg">Gerar / Visualizar proposta</button></div>
+          </div>
+        </form>
+      </section>
+
+      <section id="proposalsView" class="view">
+        <div class="section-heading">
+          <div><p class="eyebrow">HISTÓRICO</p><h3>Propostas</h3><p id="proposalsScopeText">Consulte suas propostas.</p></div>
+          <button class="btn btn-secondary refresh-view-btn" type="button" data-refresh-view="proposalsView">↻ Atualizar</button>
+        </div>
+        <div class="panel">
+          <div class="proposal-filters">
+            <label class="proposal-search-wide">Buscar
+              <input id="proposalSearch" placeholder="Cliente, CNPJ ou número Fênix..." />
+            </label>
+            <label>Status
+              <select id="proposalStatusFilter">
+                <option value="">Todos os status</option>
+                <option value="Enviada">Enviada</option>
+                <option value="Aprovada">Aprovada</option>
+                <option value="Cancelada">Cancelada</option>
+              </select>
+            </label>
+            <label class="supervisor-only">Consultor
+              <select id="proposalConsultantFilter"><option value="">Todos os consultores</option></select>
+            </label>
+            <label>Período
+              <select id="proposalPeriodFilter">
+                <option value="">Todo período</option>
+                <option value="today">Hoje</option>
+                <option value="day">Dia específico</option>
+                <option value="hour">Hora específica</option>
+                <option value="month">Mês atual</option>
+                <option value="selected_month">Mês selecionado</option>
+                <option value="3months">Últimos 3 meses</option>
+                <option value="6months">Últimos 6 meses</option>
+              </select>
+            </label>
+            <label id="proposalDateFilterWrapper" class="hidden">Data
+              <input id="proposalDateFilter" type="date">
+            </label>
+            <label id="proposalHourFilterWrapper" class="hidden">Hora
+              <select id="proposalHourFilter"></select>
+            </label>
+            <label id="proposalMonthFilterWrapper" class="hidden">Mês
+              <input id="proposalMonthFilter" type="month">
+            </label>
+            <div class="proposal-filter-actions">
+              <button id="clearProposalFiltersBtn" class="btn btn-secondary" type="button">Limpar filtros</button>
+              <button id="bulkCancelProposalsBtn" class="btn btn-secondary supervisor-only" type="button">Cancelar selecionadas</button>
+              <button id="hideCancelledProposalsBtn" class="btn btn-ghost supervisor-only" type="button">🗑 Remover canceladas</button>
+            </div>
+          </div>
+          <div id="proposalsTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+
+      <section id="faqView" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">APOIO AO ATENDIMENTO</p>
+            <h3>Dúvidas Frequentes</h3>
+            <p>Pesquise uma dúvida ou objeção e use a resposta sugerida no atendimento.</p>
+          </div>
+          <button class="btn btn-secondary refresh-view-btn" type="button" data-refresh-view="faqView">↻ Atualizar</button>
+        </div>
+        <div class="panel faq-search-panel">
+          <label>Pesquisar
+            <input id="faqSearch" placeholder="Ex.: fidelidade, DDD 91, chip virtual, pré-pago, não tenho interesse...">
+          </label>
+        </div>
+        <div id="faqResults" class="faq-results"></div>
+      </section>
+
+
+      <section id="devicesProposalView" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">APARELHOS</p>
+            <h3>Proposta de Aparelhos</h3>
+            <p>Carregue a planilha, filtre os aparelhos e gere a proposta sem sair do Fênix One.</p>
+          </div>
+          <button class="btn btn-secondary refresh-view-btn" type="button" data-refresh-view="devicesProposalView">↻ Atualizar</button>
+        </div>
+
+        <div class="panel devices-upload-panel">
+          <div class="devices-grid">
+            <label>Planilha Excel / CSV
+              <input type="file" id="devicesFileInput" accept=".xlsx,.xls,.csv">
+            </label>
+            <label>Aba da planilha
+              <select id="devicesSheetSelect" disabled></select>
+            </label>
+          </div>
+
+          <div class="device-actions">
+            <button id="devicesLoadBtn" class="btn btn-primary" type="button">Carregar planilha</button>
+            <button id="devicesRemoveDupBtn" class="btn btn-secondary" type="button" disabled>Remover duplicados</button>
+            <button id="devicesClearFiltersBtn" class="btn btn-secondary" type="button" disabled>Limpar filtros</button>
+            <button id="devicesGenerateProposalBtn" class="btn btn-primary" type="button" disabled>📋 Gerar proposta</button>
+          </div>
+
+          <div class="devices-stats">
+            <article><span>Total carregado</span><strong id="devicesTotalRows">0</strong></article>
+            <article><span>Após duplicados</span><strong id="devicesDedupRows">0</strong></article>
+            <article><span>Resultado filtrado</span><strong id="devicesFilteredRows">0</strong></article>
+            <article><span>Status</span><strong id="devicesStatus">Aguardando arquivo</strong></article>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Filtros</h3><p>Os filtros são criados automaticamente pelas colunas da planilha.</p></div></div>
+          <div id="devicesFiltersContainer" class="devices-grid"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Acréscimo nas parcelas</h3><p>Opcional.</p></div></div>
+          <div class="devices-grid">
+            <label>Acréscimo em 10X (R$)
+              <input type="number" id="devicesAdd10" min="0" step="0.01" placeholder="Ex.: 50">
+            </label>
+            <label>Acréscimo em 24X (R$)
+              <input type="number" id="devicesAdd24" min="0" step="0.01" placeholder="Ex.: 20">
+            </label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Resultado</h3><p>Visualização dos aparelhos filtrados.</p></div></div>
+          <div class="devices-table-wrap">
+            <table id="devicesTable"><thead id="devicesThead"></thead><tbody id="devicesTbody"></tbody></table>
+          </div>
+        </div>
+
+        <div id="devicesProposalModal" class="modal hidden" role="dialog" aria-modal="true">
+          <div class="modal-backdrop" data-close-devices-proposal></div>
+          <div class="modal-card proposal-modal-card">
+            <div class="modal-toolbar">
+              <div><p class="eyebrow">PROPOSTA DE APARELHOS</p><h3>Vivo Empresas</h3></div>
+              <button class="icon-btn" data-close-devices-proposal aria-label="Fechar">×</button>
+            </div>
+            <div id="devicesProposalDocument" class="proposal-document devices-proposal-document"></div>
+            <div class="modal-actions proposal-action-bar">
+              <button data-close-devices-proposal class="btn btn-secondary">Voltar</button>
+              <div class="proposal-action-group">
+                <button id="devicesPdfBtn" type="button" class="btn btn-secondary">📄 Salvar em PDF</button>
+                <button id="devicesImageBtn" type="button" class="btn btn-secondary">📸 Salvar imagem</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <section id="resultsView" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">RESULTADOS</p>
+            <h3>Resultados</h3>
+            <p>Acompanhamento mensal de migrações e receita da equipe.</p>
+          </div>
+          <button id="frRefresh" class="btn btn-secondary" type="button">↻ Atualizar</button>
+        </div>
+
+        <div class="panel">
+          <div class="form-grid cols-3">
+            <label>Período
+              <input id="frMonth" type="month">
+            </label>
+          </div>
+        </div>
+
+        <div id="frForm"></div>
+
+        <div class="frkpis frbox">
+          <div>Migrações da equipe<b id="frMig">0</b></div>
+          <div>Receita da equipe<b id="frRev">R$ 0,00</b></div>
+          <div>Consultores com resultado<b id="frCount">0</b></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">HISTÓRICO</p>
+              <h3>Resultados do período</h3>
+            </div>
+          </div>
+          <div id="frTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <section id="notificationsView" class="view supervisor-only">
+        <div class="section-heading">
+          <div><p class="eyebrow">SUPERVISÃO</p><h3>Notificações</h3><p>Novas propostas enviadas pela equipe.</p></div>
+          <button class="btn btn-secondary refresh-view-btn" type="button" data-refresh-view="notificationsView">↻ Atualizar</button>
+          <div class="section-actions">
+            <button id="refreshNotificationsBtn" class="btn btn-secondary">Atualizar</button>
+            <button id="clearNotificationsBtn" class="btn btn-ghost">Limpar notificações</button>
+          </div>
+        </div>
+        <div class="panel notification-filter-panel">
+          <div class="notification-filters">
+            <label>Data<input id="notificationDateFilter" type="date"></label>
+            <label>Mês<input id="notificationMonthFilter" type="month"></label>
+            <button id="clearNotificationFiltersBtn" class="btn btn-secondary" type="button">Limpar filtros</button>
+          </div>
+        </div>
+        <div id="notificationsList" class="notifications-list"></div>
+      </section>
+
+      <section id="adminView" class="view supervisor-only">
+        <div class="section-heading"><div><p class="eyebrow">ADMINISTRAÇÃO</p><h3>Equipe e catálogos</h3><p>Visão administrativa da Supervisora.</p></div>
+          <button class="btn btn-secondary refresh-view-btn" type="button" data-refresh-view="adminView">↻ Atualizar</button></div>
+        <div class="panel">
+<div class="panel-head"><div><h3>Colaboradores</h3><p>Cadastre e acompanhe os usuários da Equipe Fênix.</p></div></div>
+<form id="collaboratorForm" class="collaborator-form">
+<label>Nome<input id="collabFirstName" required placeholder="Gabrielle"></label>
+<label>Sobrenome<input id="collabLastName" required placeholder="Duarte"></label>
+<label>E-mail / Login<input id="collabEmail" type="email" required placeholder="gabrielle@empresa.com"></label>
+<label>Senha inicial<input id="collabPassword" type="password" minlength="8" required placeholder="Mínimo 8 caracteres"></label>
+<button id="createCollaboratorBtn" type="submit" class="btn btn-primary">Cadastrar colaborador</button>
+</form>
+<div id="collaboratorFormMessage" class="form-message"></div>
+<div id="profilesTable" class="table-wrap"></div>
+</div>
+        <div class="panel"><div class="panel-head"><div><h3>Planos móveis</h3><p>Valores atualmente cadastrados no Supabase.</p></div></div><div id="adminPlansTable" class="table-wrap"></div></div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Catálogo de produtos</h3><p>Altere valores, status e se o produto conta como Receita / Venda Alta.</p></div></div>
+          <div id="adminProductsTable" class="table-wrap"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Novidades da Equipe</h3><p>Publique várias novidades com emojis e escolha quem poderá visualizar.</p></div>
+          </div>
+          <form id="teamNewsForm" class="admin-grid news-admin-grid">
+            <input id="teamNewsEditId" type="hidden">
+            <label>Título<input id="teamNewsAdminTitle" placeholder="Ex.: 🔥 Foco da semana"></label>
+            <label class="span-2">Mensagem<textarea id="teamNewsAdminMessage" rows="3" placeholder="Emojis são aceitos normalmente 💜🔥🎯"></textarea></label>
+            <label>Público
+              <select id="teamNewsAudience"><option value="all">Todos os consultores</option></select>
+            </label>
+            <label>Exibir?<select id="teamNewsAdminActive"><option value="yes">Sim</option><option value="no">Não</option></select></label>
+            <button class="btn btn-primary" type="submit">Salvar novidade</button>
+            <button id="clearTeamNewsFormBtn" class="btn btn-secondary" type="button">Limpar formulário</button>
+          </form>
+          <div id="teamNewsAdminList" class="news-admin-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Central de Dúvidas Frequentes</h3><p>Adicione, edite, ative ou remova respostas que ficam disponíveis para os consultores.</p></div>
+          </div>
+          <form id="faqAdminForm" class="faq-admin-form">
+            <input id="faqEditId" type="hidden">
+            <label>Título<input id="faqAdminTitle" required placeholder="Ex.: Cliente pergunta sobre fidelidade"></label>
+            <label>Dúvida / situação<textarea id="faqAdminQuestion" rows="2" required placeholder="O que o cliente pode perguntar ou dizer?"></textarea></label>
+            <label class="faq-answer-field">Resposta sugerida<textarea id="faqAdminAnswer" rows="6" required placeholder="Resposta orientada para o consultor..."></textarea></label>
+            <label>Palavras-chave<input id="faqAdminKeywords" placeholder="fidelidade, contrato, multa, permanência"></label>
+            <label>Ativa?<select id="faqAdminActive"><option value="yes">Sim</option><option value="no">Não</option></select></label>
+            <div class="faq-admin-actions">
+              <button class="btn btn-primary" type="submit">Salvar dúvida</button>
+              <button id="faqAdminClearBtn" class="btn btn-secondary" type="button">Limpar</button>
+            </div>
+          </form>
+          <div id="faqAdminList" class="faq-admin-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Book do Mês</h3><p>Anexe ou remova o Book que ficará disponível para a equipe.</p></div></div>
+          <div class="media-admin-grid">
+            <label>Título<input id="bookAdminTitle" placeholder="Ex.: Book Agosto 2026"></label>
+            <label>Mês<input id="bookAdminMonth" type="month"></label>
+            <label>Arquivo<input id="bookAdminFile" type="file" accept=".pdf,.xlsx,.xls,.doc,.docx,.ppt,.pptx,image/*"></label><label>Link<input id="bookAdminLink" type="url" placeholder="https://..."></label><label class="media-text-field">Texto<textarea id="bookAdminText" rows="3" placeholder="Texto ou orientação para a equipe..."></textarea></label>
+            <button id="uploadBookBtn" class="btn btn-primary" type="button">Anexar Book</button>
+            <button id="removeBookBtn" class="btn btn-ghost" type="button">Remover Book</button>
+          </div>
+          <p id="bookAdminStatus" class="form-message"></p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h3>Book de Aparelhos</h3><p>Anexe ou substitua o Book/lista de aparelhos para consulta rápida dos consultores.</p></div></div>
+          <div class="media-admin-grid">
+            <label>Título<input id="deviceListAdminTitle" placeholder="Ex.: Book de Aparelhos Agosto"></label>
+            <label>Arquivo<input id="deviceListAdminFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,image/*"></label><label>Link<input id="deviceListAdminLink" type="url" placeholder="https://..."></label><label class="media-text-field">Texto<textarea id="deviceListAdminText" rows="3" placeholder="Texto ou orientação sobre aparelhos..."></textarea></label>
+            <button id="uploadDeviceListBtn" class="btn btn-primary" type="button">Anexar Book</button>
+            <button id="removeDeviceListBtn" class="btn btn-ghost" type="button">Remover Book</button>
+          </div>
+          <p id="deviceListAdminStatus" class="form-message"></p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Comunicados Vivo</h3><p>Adicione vários comunicados. Os mais recentes aparecerão primeiro na tela inicial da equipe.</p></div>
+          </div>
+          <div class="communications-admin-grid">
+            <label>Título<input id="communicationTitle" placeholder="Ex.: Nova campanha Vivo Empresas"></label>
+            <label>Data<input id="communicationDate" type="date"></label>
+            <label>Arquivo<input id="communicationFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.ppt,.pptx,image/*"></label><label>Link<input id="communicationLink" type="url" placeholder="https://..."></label><label class="communication-text-field">Texto<textarea id="communicationText" rows="3" placeholder="Escreva o comunicado..."></textarea></label>
+            <button id="addCommunicationBtn" class="btn btn-primary" type="button">Adicionar comunicado</button>
+          </div>
+          <p id="communicationAdminStatus" class="form-message"></p>
+          <div id="communicationsAdminList" class="communications-admin-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="proposalModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="proposalModalTitle">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-card proposal-modal-card">
+      <div class="modal-toolbar"><div><p class="eyebrow">PRÉ-VISUALIZAÇÃO</p><h3 id="proposalModalTitle">Proposta Comercial</h3></div><button id="closeProposalXBtn" class="icon-btn" data-close-modal aria-label="Fechar">✕</button></div>
+      <div id="proposalDocument" class="proposal-document"></div>
+      <div class="modal-actions proposal-action-bar">
+<button id="backEditProposalBtn" type="button" class="btn btn-secondary">← Voltar e editar</button>
+<div class="proposal-action-group">
+<button id="pdfPreviewBtn" type="button" class="btn btn-secondary">📄 Salvar em PDF</button>
+<button id="imagePreviewBtn" type="button" class="btn btn-secondary">📸 Salvar imagem</button>
+</div></div>
+    </div>
+  </div>
+
+  <div id="savedProposalModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close-saved-modal></div>
+    <div class="modal-card proposal-modal-card">
+      <div class="modal-toolbar"><div><p class="eyebrow">PROPOSTA SALVA</p><h3 id="savedProposalTitle">Proposta</h3></div><button class="icon-btn" data-close-saved-modal aria-label="Fechar">✕</button></div>
+      <div id="savedProposalDocument" class="proposal-document"></div>
+      <div id="savedInternalInfo" class="internal-info"></div>
+      <div class="modal-actions proposal-action-bar">
+<button data-close-saved-modal class="btn btn-secondary">Fechar</button>
+<div class="proposal-action-group">
+<button id="printSavedBtn" type="button" class="btn btn-secondary">🖨️ Imprimir</button>
+<button id="pdfSavedBtn" type="button" class="btn btn-primary">📄 Salvar em PDF</button>
+<button id="imageSavedBtn" type="button" class="btn btn-secondary">📸 Salvar imagem</button>
+</div></div>
+    </div>
+  </div>
+
+  <div id="communicationsModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close-communications></div>
+    <div class="modal-card communications-modal-card">
+      <div class="modal-toolbar">
+        <div><p class="eyebrow">COMUNICADOS VIVO</p><h3>Comunicados recentes</h3></div>
+        <button class="icon-btn" data-close-communications aria-label="Fechar">✕</button>
+      </div>
+      <div id="communicationsModalList" class="communications-modal-list"></div>
+    </div>
+  </div>
+
+  <div id="materialContentModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-close-material-content></div>
+    <div class="modal-card material-content-modal-card">
+      <div class="modal-toolbar"><div><p class="eyebrow">FÊNIX ONE</p><h3 id="materialContentTitle">Conteúdo</h3></div><button class="icon-btn" data-close-material-content>✕</button></div>
+      <div id="materialContentBody" class="material-content-body"></div>
+      <div id="materialContentActions" class="material-content-actions"></div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
