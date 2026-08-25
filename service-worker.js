@@ -1,65 +1,36 @@
-const CACHE_NAME = "fenix-one-results-navigation-fixed-20260820";
-const APP_SHELL = [
-  "/",
-  "/index.html",
-  "/style.css",
-  "/script.js",
-  "/manifest.json",
-  "/icon-180.png",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/icon-maskable-512.png"
-];
+const CACHE_NAME = "fenix-one-v14-20260825";
+const APP_SHELL = ["/", "/index.html", "/style.css?v=20260825-v14", "/script.js?v=20260825-v14", "/manifest.json"];
 
 self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(APP_SHELL).catch(()=>{})));
 });
 
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      ))
-      .then(() => self.clients.claim())
+      .then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k))))
+      .then(()=>self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", event => {
-  const request = event.request;
-  if(request.method !== "GET") return;
+  if(event.request.method!=="GET") return;
+  const url=new URL(event.request.url);
 
-  const url = new URL(request.url);
-  if(url.origin !== self.location.origin) return;
-
-  if(request.mode === "navigate"){
+  if(url.origin===location.origin &&
+     (url.pathname.endsWith(".js") || url.pathname.endsWith(".css") ||
+      url.pathname.endsWith(".html") || url.pathname==="/")){
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put("/index.html", copy));
-          return response;
+      fetch(event.request)
+        .then(r=>{
+          const copy=r.clone();
+          caches.open(CACHE_NAME).then(c=>c.put(event.request,copy));
+          return r;
         })
-        .catch(() => caches.match("/index.html"))
+        .catch(()=>caches.match(event.request))
     );
     return;
   }
-
-  event.respondWith(
-    caches.match(request).then(cached => {
-      const network = fetch(request).then(response => {
-        if(response && response.ok){
-          const copy=response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request,copy));
-        }
-        return response;
-      }).catch(() => cached);
-
-      return cached || network;
-    })
-  );
+  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request)));
 });

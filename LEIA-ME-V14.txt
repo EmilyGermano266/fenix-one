@@ -1,0 +1,45 @@
+FÊNIX ONE v14 — 25/08/2026
+
+Esta versão foi feita diretamente sobre os arquivos enviados em 25/08/2026 às 12:20.
+
+CORREÇÕES:
+1. Internet Móvel em Serviços já ativos:
+   - GB soma no Plano Atual.
+   - Se Manter no Plano Novo = SIM, GB soma também no Plano Novo.
+   - Valor soma no Plano Atual e, se mantido, também no Plano Novo.
+
+2. Soluções Contratadas > Internet Móvel:
+   - Migração removida do seletor.
+   - Somente Produto Novo.
+
+3. Faturamento Limite:
+   - Internet Móvel de migração NÃO conta.
+   - Internet Móvel Produto Novo conta.
+
+4. Resultados:
+   - Editar.
+   - Excluir.
+   - Salvar alteração.
+   - Recalcular indicadores após exclusão.
+
+5. Rotina:
+   - Supervisora visualiza FIZ / NÃO CONSEGUI por consultor e período.
+   - Som nos pop-ups dos consultores.
+   - Som quando chegam novas notificações para a supervisora.
+   - Observação: navegador exige ao menos uma interação (clique/toque/tecla) antes de liberar áudio.
+
+6. Propostas:
+   - Cancelamento individual.
+   - Cancelar selecionadas.
+
+7. Vivo Sync:
+   - Adicionado em Serviços já ativos.
+   - Quantidade + valor atual unitário + Manter no Plano Novo.
+   - Não soma GB.
+   - Não entra no Faturamento Limite.
+
+ATUALIZAÇÃO:
+- Substitua juntos: index.html, script.js, style.css e service-worker.js.
+- Execute SUPABASE_FIX_V14.sql no Supabase.
+- Faça novo deploy.
+- Depois abra o site e use Ctrl+F5 uma vez.

@@ -1273,3 +1273,35 @@ body.capture-proposal .proposal-document{
 @media(max-width:900px){
   .fenix-line-controls,.fenix-product-controls{grid-template-columns:1fr}
 }
+
+
+/* ============================================================
+   FÊNIX ONE v13 — ENCAIXE DE TELA EM 100% DE ZOOM
+   ============================================================ */
+html,body{max-width:100%;overflow-x:hidden}
+.app,.main,.view,.content,.card{min-width:0}
+.main{width:calc(100vw - var(--sidebar-width, 116px));max-width:none;overflow-x:hidden}
+.view{width:100%;max-width:100%;box-sizing:border-box}
+#proposalsView .card,#proposalsView .table-card,#proposalsView .panel{max-width:100%;overflow:hidden}
+#proposalsView table{width:100%;table-layout:auto}
+#proposalsView th,#proposalsView td{padding-left:8px;padding-right:8px;white-space:normal}
+#proposalsView td:nth-child(3),#proposalsView th:nth-child(3){min-width:220px}
+#proposalsView .row-actions{display:flex;flex-wrap:nowrap;gap:5px;white-space:nowrap}
+#proposalsView .mini-btn{padding:6px 8px;min-width:auto}
+#proposalsView .filters-grid,#proposalsView .proposal-filters{grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr));gap:10px}
+.frtable .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+.mini-btn.danger{border-color:#d44;color:#b42318}
+@media(max-width:1200px){
+  #proposalsView .filters-grid,#proposalsView .proposal-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #proposalsView td:nth-child(3),#proposalsView th:nth-child(3){min-width:170px}
+  #proposalsView .mini-btn{font-size:11px;padding:5px 6px}
+}
+
+
+/* FÊNIX ONE v14 — complementos pontuais */
+.mini-btn-danger{color:var(--danger);border-color:#efc5c0;background:var(--danger-bg)}
+.routine-pill{display:inline-flex;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:850;white-space:nowrap}
+.routine-ok{background:var(--success-bg);color:var(--success)}
+.routine-no{background:var(--danger-bg);color:var(--danger)}
+#fenixRoutinePanelV14 .panel-head label{min-width:230px}
+@media(max-width:700px){#fenixRoutinePanelV14 .panel-head{display:grid}#fenixRoutinePanelV14 .panel-head label{min-width:0}}

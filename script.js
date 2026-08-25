@@ -5182,3 +5182,885 @@ window.addEventListener("load", ()=>{
   // Alguns módulos antigos rodam com timeout. Confere novamente depois deles.
   setTimeout(fenixRemoveLegacyResultsButtons, 7000);
 });
+
+
+// ============================================================
+// FÊNIX ONE v13 — CORREÇÕES CONSOLIDADAS 24/08/2026
+// 1) Internet Móvel ativa soma GB no Plano Atual e, se mantida, no Plano Novo.
+// 2) Internet Móvel em Soluções Contratadas é somente VENDA NOVA.
+// 3) Faturamento Limite: Internet Móvel só entra quando for venda nova.
+// 4) Resultados: editar e excluir funcionais.
+// 5) Cancelamento de propostas com atualização simplificada e fallback.
+// ============================================================
+
+function fenixV13ActiveInternetInfo(){
+  const base = typeof serviceTotals === "function" ? serviceTotals() : {selected:[]};
+  const selected = base?.selected || [];
+  let currentGb = 0;
+  let newGb = 0;
+  for(const x of selected){
+    const svc=(state.services||[]).find(s=>String(s.id)===String(x.serviceId));
+    if(!svc?.fenixActiveInternet) continue;
+    const gb=(Number(svc.fenixGb)||0)*(Number(x.quantity)||1);
+    currentGb += gb;
+    if(x.keepNew) newGb += gb;
+  }
+  return {currentGb,newGb};
+}
+
+// Internet Móvel dentro de Soluções Contratadas: remove Migração e força Produto Novo.
+function fenixV13SyncInternetProductMode(){
+  const category=$("productCategory")?.value;
+  const type=$("productType");
+  const internet=category==="internet_movel";
+  if(!type)return;
+
+  const migrationOption=[...type.options].find(o=>o.value==="migration");
+  if(migrationOption) migrationOption.hidden=internet;
+  if(internet){
+    type.value="new";
+    type.disabled=true;
+    $("currentProductValueWrapper")?.classList.add("hidden");
+    $("productMWrapper")?.classList.add("hidden");
+  }else if(category!=="aparelho"){
+    type.disabled=false;
+  }
+}
+
+const fenixV13RenderProductOptionsBase=renderProductOptions;
+renderProductOptions=function(){
+  const r=fenixV13RenderProductOptionsBase();
+  fenixV13SyncInternetProductMode();
+  return r;
+};
+
+const fenixV13AddProductBase=addProduct;
+addProduct=function(){
+  if($("productCategory")?.value==="internet_movel" && $("productType")){
+    $("productType").value="new";
+  }
+  return fenixV13AddProductBase();
+};
+
+// Cálculo final autoritativo para GB e faturamento limite.
+const fenixV13CalcBase=calc;
+calc=function(){
+  const c=fenixV13CalcBase();
+  const active=fenixV13ActiveInternetInfo();
+
+  // O cálculo v12 já somava Internet Móvel ativa mantida ao Plano Novo.
+  // Aqui garantimos que ela também entre no Plano Atual sem duplicar o Plano Novo.
+  c.currentGb=(+($("currentFranchise")?.value||0))+active.currentGb;
+
+  // Recalcula o novo GB a partir das partes para evitar duplicidade de patches antigos.
+  const mobileItems=Array.isArray(state.mobileItems)?state.mobileItems:[];
+  const productItems=Array.isArray(state.productItems)?state.productItems:[];
+  const smeItems=Array.isArray(state.smeItems)?state.smeItems:[];
+  const keptMobile=mobileItems.filter(fenixV12KeepMobile);
+  const keptProducts=productItems.filter(fenixV12KeepProduct);
+  const mobileNewGb=keptMobile.reduce((s,i)=>s+(Number(i.gb)||0)*(Number(i.quantity)||1),0);
+  const smeGb=smeItems.reduce((s,i)=>s+(Number(i.gb)||0)*(Number(i.quantity)||1),0);
+  const contractedInternetGb=keptProducts
+    .filter(i=>fenixV12IsInternetMobile(i) && i.type!=="migration")
+    .reduce((s,i)=>s+fenixV12ProductGb(i)*(Number(i.quantity)||1),0);
+  c.newGb=mobileNewGb+smeGb+contractedInternetGb+active.newGb;
+
+  // Faturamento Limite = linhas móveis elegíveis + Internet Móvel SOMENTE venda nova.
+  const eligibleMobile=keptMobile.reduce((s,i)=>s+(Number(i.priceCents)||0)*(Number(i.quantity)||1),0);
+  const eligibleInternetNew=keptProducts
+    .filter(i=>fenixV12IsInternetMobile(i) && i.type!=="migration")
+    .reduce((s,i)=>s+(Number(i.priceCents)||0)*(Number(i.quantity)||1),0);
+  c.eligible=eligibleMobile+eligibleInternetNew;
+  c.diff=Math.max(0,(Number(c.limit)||0)-c.eligible);
+  return c;
+};
+
+const fenixV13UpdateCalcBase=updateCalc;
+updateCalc=function(){
+  const r=fenixV13UpdateCalcBase();
+  const c=calc();
+  if($("currentPlanMeta")) $("currentPlanMeta").textContent=`${c.migrationLines} linhas • ${c.currentGb} GB`;
+  if($("newPlanMeta")) $("newPlanMeta").textContent=`${c.nextLines} linhas • ${c.newGb} GB${c.esimCount?` • ${c.esimCount} E-SIM`:""}`;
+  if($("eligibleTotalDisplay")) $("eligibleTotalDisplay").textContent=money(c.eligible);
+  if($("billingLimitDisplay")) $("billingLimitDisplay").textContent=money(c.limit);
+  return r;
+};
+
+const fenixV13PayloadBase=payload;
+payload=function(){
+  const p=fenixV13PayloadBase();
+  const c=calc();
+  p.current_franchise_gb=c.currentGb;
+  p.new_franchise_gb=c.newGb;
+  p.limit_eligible_total_cents=c.eligible;
+  if(p.client_snapshot?.current) p.client_snapshot.current.franchiseGb=c.currentGb;
+  if(p.client_snapshot?.next) p.client_snapshot.next.franchiseGb=c.newGb;
+  return p;
+};
+
+// ---------- RESULTADOS: EDITAR / EXCLUIR ----------
+let fenixV13EditingResultId=null;
+
+function fenixV13ResetResultForm(){
+  fenixV13EditingResultId=null;
+  if($("frMigrations")) $("frMigrations").value=0;
+  if($("frRevenue")) $("frRevenue").value=0;
+  const b=$("frSave"); if(b)b.textContent="Salvar resultado";
+  $("frCancelEdit")?.remove();
+}
+
+async function fenixEditResult(id){
+  if(!supervisor())return;
+  const {data,error}=await db.from("consultant_results").select("*").eq("id",id).single();
+  if(error||!data)return toast("Não foi possível abrir o resultado para edição.","error");
+  fenixV13EditingResultId=id;
+  if($("frConsult")) $("frConsult").value=data.profile_id;
+  if($("frMigrations")) $("frMigrations").value=Number(data.migrations||0);
+  if($("frRevenue")) $("frRevenue").value=((Number(data.revenue_cents)||0)/100).toFixed(2);
+  if($("frPeriod")) $("frPeriod").value=String(data.period_month||"").slice(0,7);
+  const b=$("frSave"); if(b)b.textContent="Atualizar resultado";
+  if(b && !$("frCancelEdit")){
+    const cancel=document.createElement("button");
+    cancel.id="frCancelEdit";cancel.type="button";cancel.className="btn btn-secondary";cancel.textContent="Cancelar edição";
+    cancel.onclick=fenixV13ResetResultForm;b.insertAdjacentElement("afterend",cancel);
+  }
+  $("frForm")?.scrollIntoView({behavior:"smooth",block:"center"});
+}
+
+async function fenixDeleteResult(id){
+  if(!supervisor())return;
+  if(!confirm("Excluir este resultado? Esta ação removerá o registro do mês selecionado."))return;
+  const {error}=await db.from("consultant_results").delete().eq("id",id);
+  if(error){console.error("Excluir resultado:",error);return toast("Não foi possível excluir o resultado.","error");}
+  if(String(fenixV13EditingResultId)===String(id))fenixV13ResetResultForm();
+  toast("Resultado excluído.","success");
+  await fenixLoadResults();
+}
+
+fenixSaveResult=async function(){
+  const pid=$("frConsult")?.value,period=$("frPeriod")?.value;
+  if(!pid||!period)return toast("Selecione consultor e período.","error");
+  const row={
+    profile_id:pid,
+    period_month:period+"-01",
+    migrations:Number($("frMigrations")?.value||0),
+    revenue_cents:Math.round(Number($("frRevenue")?.value||0)*100),
+    updated_by:state.session?.user?.id,
+    updated_at:new Date().toISOString()
+  };
+  let result;
+  if(fenixV13EditingResultId){
+    result=await db.from("consultant_results").update(row).eq("id",fenixV13EditingResultId);
+  }else{
+    result=await db.from("consultant_results").upsert(row,{onConflict:"profile_id,period_month"});
+  }
+  if(result.error){console.error("Salvar resultado:",result.error);return toast("Não foi possível salvar o resultado.","error");}
+  $("frMonth").value=period;
+  toast(fenixV13EditingResultId?"Resultado atualizado!":"Resultado salvo!","success");
+  fenixV13ResetResultForm();
+  await fenixLoadResults();
+};
+
+fenixLoadResults=async function(){
+  const month=$("frMonth")?.value;if(!month)return;
+  const {data,error}=await db.from("consultant_results").select("*").eq("period_month",month+"-01").order("created_at",{ascending:true});
+  if(error){console.error("Carregar resultados:",error);if($("frTable"))$("frTable").innerHTML="Não foi possível carregar os resultados.";return;}
+  const rows=data||[],ps=[...(state.profiles||[]),state.profile].filter(Boolean);
+  const nm=id=>ps.find(p=>String(p.id)===String(id))?.name||ps.find(p=>String(p.id)===String(id))?.full_name||"Consultor";
+  if($("frMig")) $("frMig").textContent=rows.reduce((s,r)=>s+Number(r.migrations||0),0);
+  if($("frRev")) $("frRev").textContent=money(rows.reduce((s,r)=>s+Number(r.revenue_cents||0),0));
+  if($("frCount")) $("frCount").textContent=rows.length;
+  if($("frTable")) $("frTable").innerHTML=`<table class="frtable"><thead><tr><th>Consultor</th><th>Migrações</th><th>Receita</th>${supervisor()?"<th>Ações</th>":""}</tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(nm(r.profile_id))}</td><td>${r.migrations||0}</td><td>${money(r.revenue_cents||0)}</td>${supervisor()?`<td><div class="row-actions"><button class="mini-btn" type="button" data-fr-edit="${r.id}">Editar</button><button class="mini-btn danger" type="button" data-fr-delete="${r.id}">Excluir</button></div></td>`:""}</tr>`).join("")||`<tr><td colspan="${supervisor()?4:3}">Sem resultados neste mês.</td></tr>`}</tbody></table>`;
+  $$('[data-fr-edit]').forEach(b=>b.onclick=()=>fenixEditResult(b.dataset.frEdit));
+  $$('[data-fr-delete]').forEach(b=>b.onclick=()=>fenixDeleteResult(b.dataset.frDelete));
+};
+
+// ---------- CANCELAMENTO DE PROPOSTAS ----------
+async function fenixV13SetProposalStatus(id,status){
+  // Primeiro altera somente o status: evita falha por colunas auxiliares/legadas.
+  let res=await db.from("proposals").update({status}).eq("id",id).select("id,status").maybeSingle();
+  if(res.error){
+    console.error("Status proposals:",res.error);
+    return {ok:false,error:res.error};
+  }
+  // Metadados são complementares: se falharem, não desfaz o cancelamento.
+  const p=state.proposals.find(x=>String(x.id)===String(id));
+  const now=new Date().toISOString();
+  const internal={...(p?.internal_data||{})};
+  if(status==="Aprovada")internal.approved_at=now;
+  if(status==="Cancelada")internal.cancelled_at=now;
+  try{await db.from("proposals").update({internal_data:internal}).eq("id",id);}catch(e){console.warn(e)}
+  try{await db.from("proposal_events").insert({proposal_id:id,actor_id:state.session.user.id,event_type:"status_alterado",details:{status,changed_at:now}});}catch(e){console.warn(e)}
+  return {ok:true};
+}
+
+statusChange=async function(id,status){
+  const r=await fenixV13SetProposalStatus(id,status);
+  if(!r.ok)return toast(`Não foi possível ${status==="Cancelada"?"cancelar":"alterar"} a proposta. Verifique a permissão do Supabase.`,"error");
+  await loadProposals();renderProposals();renderDashboard();
+  toast(`Status alterado para ${status}.`,"success");
+};
+
+fenixBulkCancel=async function(){
+  if(!supervisor())return;
+  const ids=$$(".proposal-row-check:checked").map(c=>c.value);
+  if(!ids.length)return toast("Selecione pelo menos uma proposta.","error");
+  if(!confirm(`Cancelar ${ids.length} proposta(s)?`))return;
+  let failed=0;
+  for(const id of ids){
+    const p=state.proposals.find(x=>String(x.id)===String(id));
+    if(!p||p.status==="Cancelada")continue;
+    const r=await fenixV13SetProposalStatus(id,"Cancelada");
+    if(!r.ok)failed++;
+  }
+  await loadProposals();renderProposals();renderDashboard();
+  if(failed)return toast(`${failed} proposta(s) não puderam ser canceladas. Execute o SQL de permissões enviado junto.`,"error");
+  toast("Propostas selecionadas canceladas.","success");
+};
+
+// Reforça os bindings depois que todo o app carregar.
+window.addEventListener("load",()=>setTimeout(()=>{
+  if($("productCategory")){
+    const old=$("productCategory").onchange;
+    $("productCategory").onchange=()=>{if(typeof old==="function")old();else renderProductOptions();fenixV13SyncInternetProductMode();};
+  }
+  if($("productType")){
+    const old=$("productType").onchange;
+    $("productType").onchange=()=>{fenixV13SyncInternetProductMode();if(typeof old==="function")old();};
+  }
+  fenixV13SyncInternetProductMode();
+},1200));
+
+
+
+// ============================================================
+// FÊNIX ONE v14 — CORREÇÃO AUTORITATIVA 25/08/2026
+// Base: arquivos enviados em 25/08/2026 às 12:20.
+// Este bloco fica por último de propósito para prevalecer sobre patches antigos.
+// ============================================================
+
+
+// ------------------------------------------------------------
+// 1. VIVO SYNC EM SERVIÇOS JÁ ATIVOS
+// ------------------------------------------------------------
+const FENIX_VIVO_SYNC_ID = -990001;
+
+function fenixV14EnsureVivoSync(){
+  if(!(state.services||[]).some(s=>fenixNorm(s.name)==="vivo sync")){
+    state.services.push({
+      id:FENIX_VIVO_SYNC_ID,
+      name:"Vivo Sync",
+      active:true,
+      fenixActiveInternet:false,
+      fenixVivoSync:true
+    });
+  }
+}
+
+const fenixV14RenderCatalogsBase = renderCatalogs;
+renderCatalogs = function(){
+  const r = fenixV14RenderCatalogsBase();
+  fenixV14EnsureVivoSync();
+  renderServices();
+  return r;
+};
+
+
+// ------------------------------------------------------------
+// 2. SERVIÇOS JÁ ATIVOS — INTERNET MÓVEL
+// GB sempre no Plano Atual; no Novo somente quando "Manter = Sim".
+// Valor segue exatamente a mesma regra pelo serviceTotals.
+// ------------------------------------------------------------
+function fenixV14ActiveInternetTotals(){
+  const svc = serviceTotals();
+  let currentGb = 0;
+  let newGb = 0;
+
+  for(const item of (svc.selected||[])){
+    if(!item.fenixActiveInternet) continue;
+    const gb = (Number(item.fenixGb)||0) * (Number(item.quantity)||1);
+    currentGb += gb;
+    if(item.keepNew) newGb += gb;
+  }
+  return {currentGb,newGb,svc};
+}
+
+
+// ------------------------------------------------------------
+// 3. SOLUÇÕES CONTRATADAS — INTERNET MÓVEL
+// Somente Produto Novo. Migração não fica nem escondida no select.
+// ------------------------------------------------------------
+function fenixV14ProductMode(){
+  const category = $("productCategory")?.value;
+  const type = $("productType");
+  if(!type) return;
+
+  if(category === "internet_movel"){
+    type.disabled = false;
+    type.innerHTML = '<option value="new">Produto Novo</option>';
+    type.value = "new";
+    type.disabled = true;
+    $("currentProductValueWrapper")?.classList.add("hidden");
+    $("productMWrapper")?.classList.add("hidden");
+    $("fenixProductMigrationExtra")?.classList.add("hidden");
+    $("productKeepNewWrapper")?.classList.add("hidden");
+    return;
+  }
+
+  if(category === "aparelho"){
+    type.disabled = false;
+    type.innerHTML = '<option value="new">Produto Novo</option>';
+    type.value = "new";
+    type.disabled = true;
+    return;
+  }
+
+  const wanted = type.value === "migration" ? "migration" : "new";
+  type.disabled = false;
+  type.innerHTML =
+    '<option value="new">Produto Novo</option>' +
+    '<option value="migration">Migração</option>';
+  type.value = wanted;
+}
+
+const fenixV14RenderProductOptionsBase = renderProductOptions;
+renderProductOptions = function(){
+  const r = fenixV14RenderProductOptionsBase();
+  fenixV14ProductMode();
+  return r;
+};
+
+const fenixV14AddProductBase = addProduct;
+addProduct = function(){
+  if($("productCategory")?.value === "internet_movel"){
+    const t = $("productType");
+    if(t){
+      t.disabled = false;
+      t.value = "new";
+    }
+  }
+  const r = fenixV14AddProductBase();
+  fenixV14ProductMode();
+  return r;
+};
+
+
+// ------------------------------------------------------------
+// 4. CÁLCULO FINAL
+// Internet Móvel ativa: GB Atual/Novo corretos.
+// Internet Móvel de migração: NÃO entra no faturamento limite.
+// Internet Móvel Produto Novo: entra no faturamento limite.
+// ------------------------------------------------------------
+const fenixV14CalcBase = calc;
+calc = function(){
+  const c = fenixV14CalcBase();
+
+  const active = fenixV14ActiveInternetTotals();
+  const mobileItems = Array.isArray(state.mobileItems) ? state.mobileItems : [];
+  const productItems = Array.isArray(state.productItems) ? state.productItems : [];
+  const smeItems = Array.isArray(state.smeItems) ? state.smeItems : [];
+
+  const keptMobile = mobileItems.filter(i =>
+    typeof fenixV12KeepMobile === "function" ? fenixV12KeepMobile(i) : true
+  );
+  const keptProducts = productItems.filter(i =>
+    typeof fenixV12KeepProduct === "function" ? fenixV12KeepProduct(i) : true
+  );
+
+  const isInternetMobile = i =>
+    String(i?.category||"") === "internet_movel" ||
+    (typeof fenixV12IsInternetMobile === "function" && fenixV12IsInternetMobile(i));
+
+  const productGb = i => {
+    if(typeof fenixV12ProductGb === "function") return Number(fenixV12ProductGb(i))||0;
+    const m = `${i?.variant||""} ${i?.name||""}`.match(/(\d+(?:[.,]\d+)?)\s*GB/i);
+    return m ? Number(m[1].replace(",",".")) : 0;
+  };
+
+  const mobileNewGb = keptMobile.reduce(
+    (s,i)=>s+(Number(i.gb)||0)*(Number(i.quantity)||1), 0
+  );
+  const smeGb = smeItems.reduce(
+    (s,i)=>s+(Number(i.gb)||0)*(Number(i.quantity)||1), 0
+  );
+  const contractedInternetNewGb = keptProducts
+    .filter(i=>isInternetMobile(i) && i.type !== "migration")
+    .reduce((s,i)=>s+productGb(i)*(Number(i.quantity)||1), 0);
+
+  c.currentGb = (Number($("currentFranchise")?.value)||0) + active.currentGb;
+  c.newGb = mobileNewGb + smeGb + contractedInternetNewGb + active.newGb;
+
+  // Elegível móvel permanece conforme a calculadora.
+  // Produtos de Internet Móvel entram SOMENTE quando forem Produto Novo.
+  const eligibleMobile = keptMobile.reduce(
+    (s,i)=>s+(Number(i.priceCents)||0)*(Number(i.quantity)||1), 0
+  );
+  const eligibleInternetNew = keptProducts
+    .filter(i=>isInternetMobile(i) && i.type !== "migration")
+    .reduce((s,i)=>s+(Number(i.priceCents)||0)*(Number(i.quantity)||1), 0);
+
+  c.eligible = eligibleMobile + eligibleInternetNew;
+  c.diff = Math.max(0,(Number(c.limit)||0)-c.eligible);
+  c.svc = active.svc;
+
+  return c;
+};
+
+const fenixV14UpdateCalcBase = updateCalc;
+updateCalc = function(){
+  try{ fenixV14UpdateCalcBase(); }catch(e){ console.error(e); }
+  const c = calc();
+
+  if($("eligibleTotalDisplay")) $("eligibleTotalDisplay").textContent = money(c.eligible);
+  if($("currentPlanTotal")) $("currentPlanTotal").textContent = money(c.currentTotal);
+  if($("newPlanTotal")) $("newPlanTotal").textContent = money(c.newTotal);
+
+  if($("currentPlanMeta"))
+    $("currentPlanMeta").textContent = `${c.migrationLines||0} linhas • ${c.currentGb||0} GB`;
+
+  if($("newPlanMeta"))
+    $("newPlanMeta").textContent =
+      `${c.nextLines ?? c.migrationLines ?? 0} linhas • ${c.newGb||0} GB${c.esimCount?` • ${c.esimCount} E-SIM`:""}`;
+
+  const box = $("limitStatusBox");
+  if(box && $("limitStatusText")){
+    if(!c.limit){
+      box.className="status-box warning";
+      $("limitStatusText").textContent="Informe o limite";
+    }else if(c.eligible>=c.limit){
+      box.className="status-box success";
+      $("limitStatusText").textContent =
+        c.eligible>c.limit
+          ? `Limite OK • Excedente ${money(c.eligible-c.limit)}`
+          : "Faturamento limite OK";
+    }else{
+      box.className="status-box danger";
+      $("limitStatusText").textContent=`Faltam ${money(c.diff)}`;
+    }
+  }
+  return c;
+};
+
+const fenixV14PayloadBase = payload;
+payload = function(){
+  const p = fenixV14PayloadBase();
+  const c = calc();
+
+  p.current_franchise_gb = c.currentGb;
+  p.new_franchise_gb = c.newGb;
+  p.limit_eligible_total_cents = c.eligible;
+  p.current_plan_total_cents = c.currentTotal;
+  p.new_plan_total_cents = c.newTotal;
+
+  if(p.client_snapshot?.current){
+    p.client_snapshot.current.franchiseGb = c.currentGb;
+    p.client_snapshot.current.valueCents = c.currentTotal;
+  }
+  if(p.client_snapshot?.next){
+    p.client_snapshot.next.franchiseGb = c.newGb;
+    p.client_snapshot.next.valueCents = c.newTotal;
+  }
+  return p;
+};
+
+
+// ------------------------------------------------------------
+// 5. RESULTADOS — EDITAR / EXCLUIR
+// ------------------------------------------------------------
+let fenixV14EditingResultId = null;
+let fenixV14ResultRows = [];
+
+function fenixV14ResetResultForm(){
+  fenixV14EditingResultId = null;
+  if($("frMigrations")) $("frMigrations").value = 0;
+  if($("frRevenue")) $("frRevenue").value = 0;
+  if($("frSave")) $("frSave").textContent = "Salvar resultado";
+  $("frCancelEditV14")?.remove();
+}
+
+function fenixV14EditResult(id){
+  const row = fenixV14ResultRows.find(r=>String(r.id)===String(id));
+  if(!row) return toast("Resultado não encontrado.","error");
+
+  fenixV14EditingResultId = row.id;
+  if($("frConsult")) $("frConsult").value = row.profile_id;
+  if($("frMigrations")) $("frMigrations").value = Number(row.migrations||0);
+  if($("frRevenue")) $("frRevenue").value = (Number(row.revenue_cents||0)/100).toFixed(2);
+  if($("frPeriod")) $("frPeriod").value = String(row.period_month||"").slice(0,7);
+  if($("frSave")) $("frSave").textContent = "Atualizar resultado";
+
+  if($("frSave") && !$("frCancelEditV14")){
+    const b = document.createElement("button");
+    b.id = "frCancelEditV14";
+    b.type = "button";
+    b.className = "btn btn-secondary";
+    b.textContent = "Cancelar edição";
+    b.onclick = fenixV14ResetResultForm;
+    $("frSave").insertAdjacentElement("afterend",b);
+  }
+  $("frForm")?.scrollIntoView({behavior:"smooth",block:"center"});
+}
+
+async function fenixV14DeleteResult(id){
+  if(!supervisor()) return;
+  if(!confirm("Excluir este resultado?")) return;
+
+  const {error} = await db.from("consultant_results").delete().eq("id",id);
+  if(error){
+    console.error("Excluir resultado:",error);
+    return toast(error.message || "Não foi possível excluir o resultado.","error");
+  }
+
+  if(String(fenixV14EditingResultId)===String(id)) fenixV14ResetResultForm();
+  toast("Resultado excluído!","success");
+  await fenixLoadResults();
+}
+
+fenixSaveResult = async function(){
+  const pid = $("frConsult")?.value;
+  const period = $("frPeriod")?.value;
+  if(!pid || !period) return toast("Selecione consultor e período.","error");
+
+  const row = {
+    profile_id:pid,
+    period_month:period+"-01",
+    migrations:Number($("frMigrations")?.value||0),
+    revenue_cents:Math.round(Number($("frRevenue")?.value||0)*100),
+    updated_by:state.session?.user?.id,
+    updated_at:new Date().toISOString()
+  };
+
+  const result = fenixV14EditingResultId
+    ? await db.from("consultant_results").update(row).eq("id",fenixV14EditingResultId)
+    : await db.from("consultant_results").upsert(row,{onConflict:"profile_id,period_month"});
+
+  if(result.error){
+    console.error("Salvar resultado:",result.error);
+    return toast(result.error.message || "Não foi possível salvar o resultado.","error");
+  }
+
+  if($("frMonth")) $("frMonth").value = period;
+  toast(fenixV14EditingResultId ? "Resultado atualizado!" : "Resultado salvo!","success");
+  fenixV14ResetResultForm();
+  await fenixLoadResults();
+};
+
+
+// ------------------------------------------------------------
+// 6. RESPOSTAS FIZ / NÃO CONSEGUI — VISÃO DA SUPERVISORA
+// ------------------------------------------------------------
+function fenixV14EnsureRoutinePanel(){
+  if(!supervisor() || $("fenixRoutinePanelV14")) return;
+  const view = $("resultsView");
+  if(!view) return;
+
+  const panel = document.createElement("div");
+  panel.id = "fenixRoutinePanelV14";
+  panel.className = "panel";
+  panel.innerHTML = `
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">ROTINA</p>
+        <h3>Respostas dos alertas</h3>
+        <p>Veja quem marcou FIZ ou NÃO CONSEGUI.</p>
+      </div>
+      <label>Consultor
+        <select id="fenixRoutineConsultV14">
+          <option value="">Todos os consultores</option>
+        </select>
+      </label>
+    </div>
+    <div id="fenixRoutineTableV14" class="table-wrap"></div>
+  `;
+  view.appendChild(panel);
+
+  const sel = $("fenixRoutineConsultV14");
+  const people = (state.profiles||[])
+    .filter(p=>p.active!==false && String(p.role||"").toLowerCase()!=="supervisora")
+    .sort((a,b)=>String(a.full_name||a.name||"").localeCompare(String(b.full_name||b.name||""),"pt-BR"));
+
+  sel.innerHTML = '<option value="">Todos os consultores</option>' +
+    people.map(p=>`<option value="${p.id}">${esc(p.full_name||p.name||p.email||"Consultor")}</option>`).join("");
+  sel.onchange = fenixV14LoadRoutineResponses;
+}
+
+async function fenixV14LoadRoutineResponses(){
+  if(!supervisor()) return;
+  fenixV14EnsureRoutinePanel();
+
+  const target = $("fenixRoutineTableV14");
+  const month = $("frMonth")?.value;
+  if(!target || !month) return;
+
+  const [y,m] = month.split("-").map(Number);
+  const next = new Date(y,m,1);
+  const end = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-01`;
+  const start = `${month}-01`;
+  const consultant = $("fenixRoutineConsultV14")?.value || "";
+
+  let q = db.from("routine_alert_responses")
+    .select("*")
+    .gte("response_date",start)
+    .lt("response_date",end)
+    .order("response_date",{ascending:false})
+    .order("created_at",{ascending:false});
+
+  if(consultant) q = q.eq("profile_id",consultant);
+
+  const {data,error} = await q;
+  if(error){
+    console.error("Respostas rotina:",error);
+    target.innerHTML = `<div class="info-callout"><strong>Não foi possível carregar as respostas.</strong><p>${esc(error.message||"Execute o SQL v14 no Supabase.")}</p></div>`;
+    return;
+  }
+
+  const profiles = [...(state.profiles||[]),state.profile].filter(Boolean);
+  const nm = id => {
+    const p = profiles.find(x=>String(x.id)===String(id));
+    return p?.full_name||p?.name||p?.email||"Consultor";
+  };
+
+  const rows = data||[];
+  target.innerHTML = `
+    <table class="frtable">
+      <thead><tr><th>Consultor</th><th>Data</th><th>Tarefa / alerta</th><th>Resposta</th></tr></thead>
+      <tbody>
+        ${rows.length ? rows.map(r=>`
+          <tr>
+            <td>${esc(nm(r.profile_id))}</td>
+            <td>${brDate(r.response_date)}</td>
+            <td>${esc(r.alert_text||r.alert_id||"-")}</td>
+            <td><span class="routine-pill ${r.response==="FIZ"?"routine-ok":"routine-no"}">${r.response==="FIZ"?"✅ FIZ":"❌ NÃO CONSEGUI"}</span></td>
+          </tr>`).join("") : '<tr><td colspan="4">Nenhuma resposta registrada neste período.</td></tr>'}
+      </tbody>
+    </table>`;
+}
+
+fenixLoadResults = async function(){
+  const month = $("frMonth")?.value;
+  if(!month) return;
+
+  const {data,error} = await db.from("consultant_results")
+    .select("*")
+    .eq("period_month",month+"-01")
+    .order("created_at",{ascending:true});
+
+  if(error){
+    console.error("Carregar resultados:",error);
+    if($("frTable")) $("frTable").innerHTML = "Não foi possível carregar os resultados.";
+    return;
+  }
+
+  const rows = data||[];
+  fenixV14ResultRows = rows;
+  const profiles = [...(state.profiles||[]),state.profile].filter(Boolean);
+  const nm = id => {
+    const p = profiles.find(x=>String(x.id)===String(id));
+    return p?.full_name||p?.name||p?.email||"Consultor";
+  };
+
+  if($("frMig")) $("frMig").textContent = rows.reduce((s,r)=>s+Number(r.migrations||0),0);
+  if($("frRev")) $("frRev").textContent = money(rows.reduce((s,r)=>s+Number(r.revenue_cents||0),0));
+  if($("frCount")) $("frCount").textContent = new Set(rows.map(r=>String(r.profile_id))).size;
+
+  if($("frTable")){
+    $("frTable").innerHTML = `
+      <table class="frtable">
+        <thead><tr><th>Consultor</th><th>Migrações</th><th>Receita</th>${supervisor()?"<th>Ações</th>":""}</tr></thead>
+        <tbody>
+          ${rows.length ? rows.map(r=>`
+            <tr>
+              <td>${esc(nm(r.profile_id))}</td>
+              <td>${Number(r.migrations||0)}</td>
+              <td>${money(Number(r.revenue_cents||0))}</td>
+              ${supervisor()?`<td><div class="row-actions">
+                <button type="button" class="mini-btn" data-v14-edit-result="${r.id}">Editar</button>
+                <button type="button" class="mini-btn mini-btn-danger" data-v14-delete-result="${r.id}">Excluir</button>
+              </div></td>`:""}
+            </tr>`).join("") : `<tr><td colspan="${supervisor()?4:3}">Sem resultados neste mês.</td></tr>`}
+        </tbody>
+      </table>`;
+
+    $$("[data-v14-edit-result]").forEach(b=>b.onclick=()=>fenixV14EditResult(b.dataset.v14EditResult));
+    $$("[data-v14-delete-result]").forEach(b=>b.onclick=()=>fenixV14DeleteResult(b.dataset.v14DeleteResult));
+  }
+
+  if(supervisor()){
+    fenixV14EnsureRoutinePanel();
+    await fenixV14LoadRoutineResponses();
+  }
+};
+
+
+// ------------------------------------------------------------
+// 7. SOM DOS ALERTAS E NOTIFICAÇÕES
+// ------------------------------------------------------------
+let fenixV14AudioCtx = null;
+let fenixV14AudioReady = false;
+
+function fenixV14UnlockAudio(){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
+    fenixV14AudioCtx ||= new Ctx();
+    if(fenixV14AudioCtx.state==="suspended") fenixV14AudioCtx.resume();
+    fenixV14AudioReady = true;
+  }catch(e){ console.warn("Áudio:",e); }
+}
+
+["click","keydown","touchstart"].forEach(evt =>
+  window.addEventListener(evt,fenixV14UnlockAudio,{passive:true})
+);
+
+function fenixV14Sound(){
+  try{
+    fenixV14UnlockAudio();
+    if(!fenixV14AudioCtx || fenixV14AudioCtx.state!=="running") return;
+    const t = fenixV14AudioCtx.currentTime;
+    const gain = fenixV14AudioCtx.createGain();
+    const osc = fenixV14AudioCtx.createOscillator();
+    gain.gain.setValueAtTime(.0001,t);
+    gain.gain.exponentialRampToValueAtTime(.16,t+.02);
+    gain.gain.exponentialRampToValueAtTime(.0001,t+.45);
+    osc.frequency.setValueAtTime(740,t);
+    osc.frequency.setValueAtTime(940,t+.16);
+    osc.connect(gain); gain.connect(fenixV14AudioCtx.destination);
+    osc.start(t); osc.stop(t+.46);
+  }catch(e){ console.warn("Som:",e); }
+}
+
+const fenixV14AlertShowBase = fenixAlertShow;
+fenixAlertShow = function(a){
+  const existed = !!$("frAlert");
+  const r = fenixV14AlertShowBase(a);
+  if(!existed && $("frAlert")) fenixV14Sound();
+  return r;
+};
+
+let fenixV14NotifInitialized = false;
+let fenixV14KnownNotifIds = new Set();
+const fenixV14LoadNotificationsBase = loadNotifications;
+loadNotifications = async function(){
+  const before = new Set(fenixV14KnownNotifIds);
+  const r = await fenixV14LoadNotificationsBase();
+  const now = new Set((state.notifications||[]).map(n=>String(n.id)));
+  if(fenixV14NotifInitialized && [...now].some(id=>!before.has(id))) fenixV14Sound();
+  fenixV14KnownNotifIds = now;
+  fenixV14NotifInitialized = true;
+  return r;
+};
+
+
+// ------------------------------------------------------------
+// 8. CANCELAMENTO INDIVIDUAL E EM MASSA
+// ------------------------------------------------------------
+async function fenixV14SetProposalStatus(id,status){
+  const {data,error} = await db.from("proposals")
+    .update({status})
+    .eq("id",id)
+    .select("id,status");
+
+  if(error){
+    console.error("Alterar proposta:",error);
+    return {ok:false,error};
+  }
+  if(!data?.length){
+    return {ok:false,error:{message:"A proposta não foi atualizada. Verifique a permissão do Supabase."}};
+  }
+
+  const p = state.proposals.find(x=>String(x.id)===String(id));
+  const now = new Date().toISOString();
+  const internal = {...(p?.internal_data||{})};
+  if(status==="Cancelada") internal.cancelled_at = now;
+  if(status==="Aprovada") internal.approved_at = now;
+
+  // Complementares: não impedem o status principal.
+  db.from("proposals").update({internal_data:internal}).eq("id",id).then(()=>{}).catch(()=>{});
+  db.from("proposal_events").insert({
+    proposal_id:id,
+    actor_id:state.session.user.id,
+    event_type:"status_alterado",
+    details:{status,changed_at:now}
+  }).then(()=>{}).catch(()=>{});
+
+  return {ok:true};
+}
+
+statusChange = async function(id,status){
+  const r = await fenixV14SetProposalStatus(id,status);
+  if(!r.ok) return toast(r.error?.message || "Não foi possível alterar a proposta.","error");
+  await loadProposals();
+  renderProposals();
+  renderDashboard();
+  toast(`Status alterado para ${status}.`,"success");
+};
+
+fenixBulkCancel = async function(){
+  if(!supervisor()) return toast("Apenas a Supervisora pode cancelar em massa.","error");
+  const ids = $$(".proposal-row-check:checked").map(c=>c.value);
+  if(!ids.length) return toast("Selecione pelo menos uma proposta.","error");
+  if(!confirm(`Cancelar ${ids.length} proposta(s) selecionada(s)?`)) return;
+
+  let ok = 0, failed = 0;
+  for(const id of ids){
+    const p = state.proposals.find(x=>String(x.id)===String(id));
+    if(!p || p.status==="Cancelada") continue;
+    const r = await fenixV14SetProposalStatus(id,"Cancelada");
+    r.ok ? ok++ : failed++;
+  }
+
+  await loadProposals();
+  renderProposals();
+  renderDashboard();
+
+  if(failed) return toast(`${ok} cancelada(s). ${failed} falharam. Execute o SQL v14 no Supabase.`,"error");
+  toast(`${ok} proposta(s) cancelada(s)!`,"success");
+};
+
+
+// ------------------------------------------------------------
+// 9. BINDINGS FINAIS — executados depois de todos os códigos antigos
+// ------------------------------------------------------------
+function fenixV14Bind(){
+  fenixV14EnsureVivoSync();
+  renderServices();
+  fenixV14ProductMode();
+
+  if($("productCategory")){
+    $("productCategory").onchange = ()=>{
+      renderProductOptions();
+      fenixV14ProductMode();
+    };
+  }
+
+  if($("productType")){
+    $("productType").onchange = ()=>{
+      const migration = $("productType").value==="migration";
+      $("currentProductValueWrapper")?.classList.toggle("hidden",!migration);
+      $("productMWrapper")?.classList.toggle("hidden",!migration);
+      fenixV14ProductMode();
+    };
+  }
+
+  if($("frSave")) $("frSave").onclick = fenixSaveResult;
+  if($("frMonth")) $("frMonth").onchange = fenixLoadResults;
+  if($("frRefresh")) $("frRefresh").onclick = fenixLoadResults;
+  if($("bulkCancelProposalsBtn")) $("bulkCancelProposalsBtn").onclick = fenixBulkCancel;
+
+  try{ updateCalc(); }catch(e){ console.error(e); }
+}
+
+window.addEventListener("load",()=>{
+  setTimeout(fenixV14Bind,700);
+  setTimeout(fenixV14Bind,3000);
+  setTimeout(fenixV14Bind,7000);
+});
+
+document.addEventListener("click",e=>{
+  if(e.target?.closest?.('[data-view="resultsView"]')){
+    setTimeout(()=>{
+      fenixV14Bind();
+      fenixLoadResults();
+    },100);
+  }
+});
