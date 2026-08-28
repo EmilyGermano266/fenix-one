@@ -6064,3 +6064,363 @@ document.addEventListener("click",e=>{
     },100);
   }
 });
+
+
+
+// ============================================================
+// FÊNIX ONE v15 — AJUSTES FINAIS 25/08/2026
+// 1) Proposta: somente Serviços já ativos + Soluções Contratadas
+// 2) Remove duplicidade de "Produtos"
+// 3) Respostas de rotina exibem horário exato do clique
+// ============================================================
+
+
+// ------------------------------------------------------------
+// PROPOSTA — ESTRUTURA FINAL DE NOMENCLATURA
+// ------------------------------------------------------------
+
+// Toda contratação nova deve aparecer apenas sob "SOLUÇÕES CONTRATADAS".
+// A seção antiga "PRODUTOS" não faz parte da interface do Fênix One.
+const fenixV15ProposalBase = proposalHTML;
+
+proposalHTML = function(snapshot, fenixNumber=""){
+  let html = fenixV15ProposalBase(snapshot, fenixNumber);
+
+  // Normaliza títulos antigos.
+  html = html
+    .replace(/PRODUTO INCLUSO/gi, "SOLUÇÕES CONTRATADAS")
+    .replace(/PRODUTOS INCLUSOS/gi, "SOLUÇÕES CONTRATADAS");
+
+  // Remove blocos antigos intitulados PRODUTOS.
+  // O mesmo conteúdo já é renderizado pela seção SOLUÇÕES CONTRATADAS.
+  html = html.replace(
+    /<span class="plan-detail-title">\s*PRODUTOS\s*<\/span>[\s\S]*?(?=<span class="plan-detail-title">|<div class="plan-price">|<\/div>\s*<div class="plan-price">)/gi,
+    ""
+  );
+
+  // Caso algum patch antigo deixe um título "PRODUTOS" sem linhas.
+  html = html.replace(
+    /<span class="plan-detail-title">\s*PRODUTOS\s*<\/span>/gi,
+    ""
+  );
+
+  // Evita duas seções consecutivas com o mesmo título.
+  html = html.replace(
+    /(<span class="plan-detail-title">\s*SOLUÇÕES CONTRATADAS\s*<\/span>)\s*\1/gi,
+    "$1"
+  );
+
+  return html;
+};
+
+
+// ------------------------------------------------------------
+// ROTINA — MOSTRAR HORÁRIO EM QUE O CONSULTOR RESPONDEU
+// ------------------------------------------------------------
+function fenixV15Time(value){
+  if(!value) return "-";
+  const d = new Date(value);
+  if(Number.isNaN(d.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR",{
+    hour:"2-digit",
+    minute:"2-digit",
+    second:"2-digit"
+  }).format(d);
+}
+
+fenixV14LoadRoutineResponses = async function(){
+  if(!supervisor()) return;
+  fenixV14EnsureRoutinePanel();
+
+  const target = $("fenixRoutineTableV14");
+  const month = $("frMonth")?.value;
+  if(!target || !month) return;
+
+  const [y,m] = month.split("-").map(Number);
+  const next = new Date(y,m,1);
+  const end = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-01`;
+  const start = `${month}-01`;
+  const consultant = $("fenixRoutineConsultV14")?.value || "";
+
+  let q = db.from("routine_alert_responses")
+    .select("*")
+    .gte("response_date",start)
+    .lt("response_date",end)
+    .order("response_date",{ascending:false})
+    .order("created_at",{ascending:false});
+
+  if(consultant) q = q.eq("profile_id",consultant);
+
+  const {data,error} = await q;
+
+  if(error){
+    console.error("Respostas rotina:",error);
+    target.innerHTML = `
+      <div class="info-callout">
+        <strong>Não foi possível carregar as respostas.</strong>
+        <p>${esc(error.message||"Verifique o Supabase.")}</p>
+      </div>`;
+    return;
+  }
+
+  const profiles = [...(state.profiles||[]),state.profile].filter(Boolean);
+  const nm = id => {
+    const p = profiles.find(x=>String(x.id)===String(id));
+    return p?.full_name||p?.name||p?.email||"Consultor";
+  };
+
+  const rows = data||[];
+
+  target.innerHTML = `
+    <table class="frtable">
+      <thead>
+        <tr>
+          <th>Consultor</th>
+          <th>Data</th>
+          <th>Horário</th>
+          <th>Tarefa / alerta</th>
+          <th>Resposta</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${
+          rows.length
+            ? rows.map(r=>`
+                <tr>
+                  <td><strong>${esc(nm(r.profile_id))}</strong></td>
+                  <td>${brDate(r.response_date)}</td>
+                  <td><strong>${fenixV15Time(r.created_at)}</strong></td>
+                  <td>${esc(r.alert_text||r.alert_id||"-")}</td>
+                  <td>
+                    <span class="routine-pill ${r.response==="FIZ"?"routine-ok":"routine-no"}">
+                      ${r.response==="FIZ"?"✅ FIZ":"❌ NÃO CONSEGUI"}
+                    </span>
+                  </td>
+                </tr>
+              `).join("")
+            : '<tr><td colspan="5">Nenhuma resposta registrada neste período.</td></tr>'
+        }
+      </tbody>
+    </table>`;
+};
+
+
+
+// ============================================================
+// FÊNIX ONE v18 — MENU RECOLHÍVEL + DATA SEGURA
+// ============================================================
+
+// ---------- MENU LATERAL RECOLHÍVEL ----------
+function fenixV18SidebarApply(collapsed){
+  document.documentElement.classList.toggle("fenix-sidebar-collapsed", !!collapsed);
+  document.body.classList.toggle("fenix-sidebar-collapsed", !!collapsed);
+  const btn = document.getElementById("fenixSidebarToggleV18");
+  if(btn){
+    btn.textContent = collapsed ? "›" : "‹";
+    btn.title = collapsed ? "Expandir menu" : "Recolher menu";
+    btn.setAttribute("aria-label", btn.title);
+  }
+  try{ localStorage.setItem("fenix_sidebar_collapsed", collapsed ? "1" : "0"); }catch(e){}
+}
+
+function fenixV18SidebarInit(){
+  const sidebar = document.querySelector(".sidebar");
+  const brand = document.querySelector(".sidebar-brand");
+  if(!sidebar || !brand) return;
+
+  let btn = document.getElementById("fenixSidebarToggleV18");
+  if(!btn){
+    btn = document.createElement("button");
+    btn.id = "fenixSidebarToggleV18";
+    btn.type = "button";
+    btn.className = "fenix-sidebar-toggle";
+    brand.appendChild(btn);
+  }
+
+  const saved = (()=>{ try{return localStorage.getItem("fenix_sidebar_collapsed")==="1"}catch(e){return false} })();
+  fenixV18SidebarApply(saved);
+
+  btn.onclick = ()=>{
+    fenixV18SidebarApply(!document.body.classList.contains("fenix-sidebar-collapsed"));
+  };
+}
+
+
+// ---------- DATAS SEGURAS / INVALID TIME VALUE ----------
+function fenixV18IsoDate(raw, fallback=""){
+  let v = String(raw || "").trim();
+  if(!v) return fallback;
+
+  // yyyy-mm-dd
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m){
+    const y=Number(m[1]), mo=Number(m[2]), d=Number(m[3]);
+    if(y>=1000 && y<=9999 && mo>=1 && mo<=12 && d>=1 && d<=31){
+      return `${String(y).padStart(4,"0")}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    }
+  }
+
+  // dd/mm/yyyy
+  m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m){
+    const d=Number(m[1]), mo=Number(m[2]), y=Number(m[3]);
+    if(y>=1000 && y<=9999 && mo>=1 && mo<=12 && d>=1 && d<=31){
+      return `${String(y).padStart(4,"0")}-${String(mo).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    }
+  }
+  return fallback;
+}
+
+function fenixV18PrepareDates(){
+  const proposal = document.getElementById("proposalDate");
+  const validity = document.getElementById("validityDate");
+
+  const proposalIso = fenixV18IsoDate(proposal?.value, isoToday());
+  let validityIso = fenixV18IsoDate(validity?.value, "");
+
+  if(!validityIso){
+    const d = new Date(`${proposalIso}T12:00:00`);
+    if(Number.isNaN(d.getTime())) return false;
+    d.setDate(d.getDate()+1);
+    validityIso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+
+  // Confirma de fato que o timestamp é válido antes do payload antigo chamar toISOString().
+  const finalDate = new Date(`${validityIso}T23:59:59`);
+  if(Number.isNaN(finalDate.getTime())){
+    toast("A data de validade é inválida. Confira a data e tente novamente.","error");
+    return false;
+  }
+
+  if(proposal) proposal.value = proposalIso;
+  if(validity) validity.value = validityIso;
+  return true;
+}
+
+// Envolve a geração estável já existente sem refazer as regras da proposta.
+const fenixV18PreviewBase = fenixOpenProposalPreviewStable;
+fenixOpenProposalPreviewStable = async function(){
+  if(!fenixV18PrepareDates()) return;
+  return await fenixV18PreviewBase();
+};
+
+// Rebind porque versões antigas já tinham guardado referência da função anterior.
+function fenixV18BindPreview(){
+  const old = document.getElementById("previewProposalBtn");
+  if(!old) return;
+  const fresh = old.cloneNode(true);
+  old.replaceWith(fresh);
+  fresh.type = "button";
+  fresh.onclick = fenixOpenProposalPreviewStable;
+}
+
+
+// ---------- INICIALIZAÇÃO ----------
+function fenixV18Init(){
+  fenixV18SidebarInit();
+  fenixV18BindPreview();
+}
+
+window.addEventListener("load",()=>{
+  setTimeout(fenixV18Init,700);
+  setTimeout(fenixV18Init,3600);
+  setTimeout(fenixV18Init,7000);
+});
+
+document.addEventListener("click", e=>{
+  if(e.target?.closest?.(".nav-item")){
+    setTimeout(fenixV18SidebarInit,50);
+  }
+});
+
+
+
+// ============================================================
+// FÊNIX ONE v19 — RESTAURA / GARANTE REMOÇÃO DE ITENS
+// ============================================================
+
+// Serviços já ativos: além de poder desmarcar o checkbox,
+// mostra também um botão claro de "Remover serviço".
+function fenixV19ServiceRemoveButtons(){
+  document.querySelectorAll("#servicesGrid .service-card").forEach(card=>{
+    const toggle = card.querySelector(".service-toggle");
+    const fields = card.querySelector(".service-fields");
+    if(!toggle || !fields) return;
+
+    let btn = card.querySelector(".fenix-service-remove-v19");
+
+    if(toggle.checked){
+      if(!btn){
+        btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "item-remove fenix-service-remove-v19";
+        btn.textContent = "Remover serviço";
+        btn.onclick = ()=>{
+          toggle.checked = false;
+          toggle.dispatchEvent(new Event("change",{bubbles:true}));
+          setTimeout(fenixV19ServiceRemoveButtons,0);
+        };
+        fields.appendChild(btn);
+      }
+      btn.classList.remove("hidden");
+    }else if(btn){
+      btn.remove();
+    }
+  });
+}
+
+// Mantém os botões dos serviços sincronizados após qualquer renderização.
+const fenixV19RenderServicesBase = renderServices;
+renderServices = function(){
+  const r = fenixV19RenderServicesBase();
+  fenixV19ServiceRemoveButtons();
+  return r;
+};
+
+// Segurança extra: sempre que um serviço for marcado/desmarcado.
+document.addEventListener("change", e=>{
+  if(e.target?.classList?.contains("service-toggle")){
+    setTimeout(fenixV19ServiceRemoveButtons,0);
+  }
+});
+
+// Segurança extra para linhas, SME e Soluções Contratadas.
+// Mesmo que algum binding antigo seja perdido, os botões Remover continuam funcionais.
+document.addEventListener("click", e=>{
+  const mobile = e.target?.closest?.("[data-rm]");
+  if(mobile){
+    e.preventDefault();
+    const uid = mobile.dataset.rm;
+    state.mobileItems = (state.mobileItems||[]).filter(i=>String(i.uid)!==String(uid));
+    renderMobile();
+    updateCalc();
+    return;
+  }
+
+  const sme = e.target?.closest?.("[data-rs]");
+  if(sme){
+    e.preventDefault();
+    const uid = sme.dataset.rs;
+    state.smeItems = (state.smeItems||[]).filter(i=>String(i.uid)!==String(uid));
+    renderSme();
+    updateCalc();
+    return;
+  }
+
+  const product = e.target?.closest?.("[data-rp]");
+  if(product){
+    e.preventDefault();
+    const uid = product.dataset.rp;
+    state.productItems = (state.productItems||[]).filter(i=>String(i.uid)!==String(uid));
+    renderProducts();
+    updateCalc();
+    return;
+  }
+}, true);
+
+// Executa depois do carregamento para garantir os botões nos serviços ativos.
+window.addEventListener("load",()=>{
+  setTimeout(fenixV19ServiceRemoveButtons,900);
+  setTimeout(fenixV19ServiceRemoveButtons,3500);
+  setTimeout(fenixV19ServiceRemoveButtons,7000);
+});
