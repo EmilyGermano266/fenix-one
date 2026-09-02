@@ -1,0 +1,24 @@
+FÊNIX ONE v23 — CORREÇÃO IMEDIATA
+
+1. Restaurado o campo “M da linha” para itens do tipo Migração.
+   - Migração exige/preenche M.
+   - E-SIM e Linha Nova não exibem nem exigem M.
+   - Botão Remover foi preservado.
+
+2. Rolagem horizontal:
+   - Áreas largas do sistema agora permitem rolar/arrastar para direita e esquerda.
+   - Aplicado também a Dashboard, Propostas, Resultados, tabelas e Etapa 2.
+   - O conteúdo não precisa ser espremido para caber.
+
+Esta versão NÃO aplica ainda o próximo ajuste geral de tamanho das letras.
+Ele fica para a rodada seguinte, depois do teste completo da proposta.
+
+Não precisa executar SQL.
+
+Substitua no GitHub:
+- index.html
+- script.js
+- style.css
+- service-worker.js
+
+Depois aguarde a Vercel ficar Ready e faça Ctrl + F5.

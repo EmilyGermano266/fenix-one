@@ -6981,3 +6981,89 @@ document.addEventListener("click",e=>{
     fenixV22FloatingSidebar();
   },80);
 });
+
+
+// ============================================================
+// FÊNIX ONE v23 — CORREÇÃO IMEDIATA: M DA MIGRAÇÃO
+// ============================================================
+
+// Render final da Etapa 2. Restaura o campo M apenas para Migração,
+// preservando Remover, E-SIM e Linha Nova.
+renderMobile = function(){
+  const el = $("mobileItems");
+  if(!el) return;
+
+  if(!Array.isArray(state.mobileItems) || !state.mobileItems.length){
+    el.className = "items-list empty-state";
+    el.textContent = "Nenhuma linha adicionada.";
+    return;
+  }
+
+  const typeLabel = i => {
+    if(i.type === "migration") return "Migração";
+    if(i.type === "esim") return "E-SIM";
+    return "Linha Nova";
+  };
+
+  el.className = "items-list";
+  el.innerHTML = state.mobileItems.map(i => `
+    <div class="item-row fenix-v23-mobile-row" data-mobile-uid="${esc(i.uid)}">
+      <div class="fenix-v23-mobile-main">
+        <strong>${esc(typeLabel(i))} • ${Number(i.gb)||0} GB</strong>
+        <span>${i.type==="migration" ? "Linha existente" : (i.type==="esim" ? "Chip virtual" : "Linha nova")}</span>
+      </div>
+
+      <span>${Number(i.quantity)||1} un.</span>
+      <span>${(Number(i.gb)||0)*(Number(i.quantity)||1)} GB</span>
+      <span>${money((Number(i.priceCents)||0)*(Number(i.quantity)||1))}</span>
+
+      ${i.type==="migration" ? `
+        <label class="fenix-v23-m-field">
+          <span>M da linha</span>
+          <input
+            type="text"
+            class="fenix-v23-m-input"
+            value="${esc(i.m||"")}"
+            placeholder="Ex.: 17"
+            autocomplete="off"
+          >
+        </label>
+      ` : `<div class="fenix-v23-m-spacer"></div>`}
+
+      <button type="button" class="item-remove fenix-v23-remove-mobile" data-rm="${esc(i.uid)}">Remover</button>
+    </div>
+  `).join("");
+
+  el.querySelectorAll(".fenix-v23-m-input").forEach(input=>{
+    input.addEventListener("input",()=>{
+      const row=input.closest("[data-mobile-uid]");
+      const uid=String(row?.dataset.mobileUid||"");
+      const item=(state.mobileItems||[]).find(x=>String(x.uid)===uid);
+      if(item){
+        item.m=input.value.trim();
+        updateCalc();
+      }
+    });
+    input.addEventListener("change",()=>{
+      const row=input.closest("[data-mobile-uid]");
+      const uid=String(row?.dataset.mobileUid||"");
+      const item=(state.mobileItems||[]).find(x=>String(x.uid)===uid);
+      if(item) item.m=input.value.trim();
+    });
+  });
+
+  el.querySelectorAll(".fenix-v23-remove-mobile").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const uid=String(btn.dataset.rm||"");
+      state.mobileItems=(state.mobileItems||[]).filter(i=>String(i.uid)!==uid);
+      renderMobile();
+      updateCalc();
+    });
+  });
+};
+
+// Re-renderiza após a aplicação de todos os wrappers anteriores.
+window.addEventListener("load",()=>{
+  setTimeout(()=>{ try{renderMobile()}catch(e){console.error(e)} },1200);
+  setTimeout(()=>{ try{renderMobile()}catch(e){console.error(e)} },4500);
+});

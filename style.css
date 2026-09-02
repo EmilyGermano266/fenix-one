@@ -2169,3 +2169,121 @@ body.capture-proposal .proposal-document *{
   .section-heading h3,.panel-head h3{font-size:21px!important}
   .fenix-sidebar-floating{top:auto!important;bottom:22px!important}
 }
+
+
+/* ============================================================
+   FÊNIX ONE v23 — M DA MIGRAÇÃO + ROLAGEM HORIZONTAL
+   ============================================================ */
+
+/* Etapa 2 */
+#mobileItems{
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  max-width:100%!important;
+  scrollbar-width:auto!important;
+  padding-bottom:5px!important;
+}
+#mobileItems .fenix-v23-mobile-row{
+  display:grid!important;
+  grid-template-columns:minmax(230px,1.45fr) 75px 85px 105px minmax(150px,.8fr) 105px!important;
+  gap:10px!important;
+  align-items:center!important;
+  min-width:900px!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+}
+.fenix-v23-mobile-main{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:3px!important;
+  min-width:0!important;
+}
+.fenix-v23-mobile-main strong{font-size:14px!important}
+.fenix-v23-mobile-main span{font-size:12px!important;color:var(--muted)!important}
+.fenix-v23-m-field{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:4px!important;
+  margin:0!important;
+}
+.fenix-v23-m-field span{
+  font-size:12px!important;
+  font-weight:750!important;
+}
+.fenix-v23-m-input{
+  width:100%!important;
+  min-height:36px!important;
+  height:36px!important;
+  padding:6px 9px!important;
+  font-size:14px!important;
+}
+.fenix-v23-remove-mobile{
+  display:inline-flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  position:static!important;
+  justify-content:center!important;
+  align-items:center!important;
+  width:105px!important;
+  min-width:105px!important;
+}
+
+/* Rolagem horizontal real da área principal.
+   Quando uma tela precisar de mais largura, ela pode ser arrastada para os lados. */
+.main,
+main,
+.content,
+.page-content,
+.app-content,
+.view,
+.view.active{
+  overflow-x:auto!important;
+  overflow-y:visible;
+  scrollbar-width:auto!important;
+}
+
+/* Componentes largos preservam seu conteúdo em vez de cortar */
+.table-wrap,
+.dashboard-grid,
+.ranking-wrap,
+.notifications-list,
+.proposals-list,
+#supervisorView,
+#resultsView,
+#proposalsView,
+#dashboardView{
+  overflow-x:auto!important;
+  scrollbar-width:auto!important;
+}
+
+/* Barra horizontal mais fácil de localizar no Chrome/Edge */
+.main::-webkit-scrollbar,
+main::-webkit-scrollbar,
+.content::-webkit-scrollbar,
+.page-content::-webkit-scrollbar,
+.app-content::-webkit-scrollbar,
+.view::-webkit-scrollbar,
+#mobileItems::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar{
+  height:12px!important;
+}
+.main::-webkit-scrollbar-thumb,
+main::-webkit-scrollbar-thumb,
+.content::-webkit-scrollbar-thumb,
+.page-content::-webkit-scrollbar-thumb,
+.app-content::-webkit-scrollbar-thumb,
+.view::-webkit-scrollbar-thumb,
+#mobileItems::-webkit-scrollbar-thumb,
+.table-wrap::-webkit-scrollbar-thumb{
+  background:rgba(102,0,153,.32)!important;
+  border-radius:20px!important;
+  border:3px solid transparent!important;
+  background-clip:padding-box!important;
+}
+
+/* Em telas menores, não espreme o campo M nem o botão Remover. */
+@media(max-width:1050px){
+  #mobileItems .fenix-v23-mobile-row{
+    min-width:860px!important;
+  }
+}
