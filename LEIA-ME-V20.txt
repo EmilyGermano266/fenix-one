@@ -1,0 +1,22 @@
+FÊNIX ONE v20
+
+AJUSTES DESTA VERSÃO
+1. Botão Remover restaurado nas linhas:
+   - Migração
+   - Linha Nova
+   - E-SIM
+2. Banda Larga em migração:
+   - Plano Atual mostra o produto antigo e seu valor atual.
+   - Plano Novo mostra o produto novo e seu novo valor.
+   - Ex.: 500 Mega -> 700 Mega.
+3. Mantido o layout atual da proposta.
+4. Não é necessário executar SQL.
+
+ATUALIZAÇÃO
+Substitua juntos no GitHub:
+- index.html
+- script.js
+- style.css
+- service-worker.js
+
+Depois aguarde o deploy automático da Vercel e faça Ctrl + F5 no Fênix One.

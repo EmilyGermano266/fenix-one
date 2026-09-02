@@ -1,0 +1,5 @@
+FÊNIX ONE v17 — INTERFACE GLOBAL MAIOR
+Ampliação aplicada ao sistema inteiro: menu, cabeçalhos, textos, formulários, botões, cards, tabelas, resultados, notificações, administração, propostas, nova proposta e proposta de aparelhos.
+Nenhuma regra de cálculo ou funcionalidade foi alterada.
+Não precisa executar SQL.
+Substitua index.html, script.js, style.css e service-worker.js juntos; aguarde o deploy e faça Ctrl+F5.

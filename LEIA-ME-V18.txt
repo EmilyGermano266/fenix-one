@@ -1,0 +1,20 @@
+FÊNIX ONE v18 — MENU + TELA + SALVAMENTO
+
+Ajustes:
+1. Menu lateral recolhível
+- Botão ‹ para recolher.
+- Botão › para abrir.
+- Estado fica salvo no navegador.
+- Menu recolhido libera espaço para o conteúdo.
+
+2. Interface global maior
+- Textos, campos, botões, cards, tabelas e valores maiores em todo o Fênix One.
+
+3. Correção "Invalid time value"
+- Datas dd/mm/aaaa e aaaa-mm-dd são normalizadas antes da geração.
+- Data inválida não derruba a geração: o sistema mostra aviso.
+- O botão Gerar / Visualizar é religado à versão estável com a validação de data.
+
+Não precisa executar SQL.
+Atualize index.html, script.js, style.css e service-worker.js juntos.
+Depois do deploy automático da Vercel, faça Ctrl+F5 uma vez.

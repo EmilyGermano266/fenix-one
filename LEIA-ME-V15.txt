@@ -1,0 +1,29 @@
+FÊNIX ONE v15 — AJUSTES FINAIS 25/08/2026
+
+ALTERAÇÕES DESTA RODADA:
+
+1. PROPOSTA
+- Mantidas apenas as nomenclaturas corretas:
+  • SERVIÇOS JÁ ATIVOS
+  • SOLUÇÕES CONTRATADAS
+- A seção antiga PRODUTOS foi eliminada.
+- Itens adicionados em Soluções Contratadas não devem mais aparecer duplicados em Produtos.
+
+2. VISUAL
+- Fontes maiores.
+- Campos maiores.
+- Botões maiores.
+- Mais espaçamento entre informações.
+- Etapas e resumos mais fáceis de ler.
+- A página pode ficar mais longa verticalmente para preservar a legibilidade.
+- Sem uso de zoom artificial.
+
+3. ROTINA / RESULTADOS
+- Adicionada coluna HORÁRIO.
+- O horário é o created_at salvo pelo Supabase quando o consultor clicou em FIZ ou NÃO CONSEGUI.
+- Exibição: Consultor | Data | Horário | Tarefa / alerta | Resposta.
+
+ATUALIZAÇÃO:
+- Substitua index.html, script.js, style.css e service-worker.js juntos.
+- Não há SQL novo para esta rodada.
+- Faça o deploy e depois Ctrl+F5 uma vez.

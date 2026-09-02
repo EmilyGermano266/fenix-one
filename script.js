@@ -6424,3 +6424,560 @@ window.addEventListener("load",()=>{
   setTimeout(fenixV19ServiceRemoveButtons,3500);
   setTimeout(fenixV19ServiceRemoveButtons,7000);
 });
+
+
+
+// ============================================================
+// FÊNIX ONE v20 — REMOVER LINHAS + BANDA LARGA MIGRADA
+// ============================================================
+
+// 1) REMOÇÃO DE LINHAS
+// Render final autoritativo para garantir que o botão Remover
+// fique dentro da linha e funcione para Migração, Linha Nova e E-SIM.
+const fenixV20RenderMobileBase = renderMobile;
+renderMobile = function(){
+  const el = $("mobileItems");
+  if(!el) return;
+
+  if(!Array.isArray(state.mobileItems) || !state.mobileItems.length){
+    el.className = "items-list empty-state";
+    el.textContent = "Nenhuma linha adicionada.";
+    return;
+  }
+
+  const typeLabel = i => {
+    if(i.type === "migration") return "Migração";
+    if(i.type === "esim") return "E-SIM";
+    return "Linha Nova";
+  };
+
+  el.className = "items-list";
+  el.innerHTML = state.mobileItems.map(i => `
+    <div class="item-row fenix-v20-mobile-row">
+      <div class="fenix-v20-mobile-main">
+        <strong>${esc(typeLabel(i))} • ${Number(i.gb)||0} GB</strong>
+        <span>${i.type==="migration" ? `M: ${esc(i.m||"-")}` : (i.type==="esim" ? "Chip virtual" : "Linha nova")}</span>
+      </div>
+      <span>${Number(i.quantity)||1} un.</span>
+      <span>${(Number(i.gb)||0)*(Number(i.quantity)||1)} GB</span>
+      <span>${money((Number(i.priceCents)||0)*(Number(i.quantity)||1))}</span>
+      <button type="button" class="item-remove fenix-v20-remove-mobile" data-rm="${esc(i.uid)}">Remover</button>
+    </div>
+  `).join("");
+};
+
+// Clique delegado final: funciona mesmo depois de re-renderizações.
+document.addEventListener("click", function(e){
+  const btn = e.target?.closest?.(".fenix-v20-remove-mobile[data-rm]");
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const uid = String(btn.dataset.rm || "");
+  state.mobileItems = (state.mobileItems || []).filter(i => String(i.uid) !== uid);
+  renderMobile();
+  updateCalc();
+}, true);
+
+
+// 2) BANDA LARGA MIGRADA NA PROPOSTA
+function fenixV20MigrationProducts(snapshot){
+  return Array.isArray(snapshot?.internal_data?.productMigrations)
+    ? snapshot.internal_data.productMigrations
+    : [];
+}
+
+function fenixV20IsBroadbandMigration(m){
+  const text = `${m?.currentName||""} ${m?.newName||""}`.toLowerCase();
+  return /mega|mbps|gbps|banda larga|fibra|700|600|500|1gb/.test(text);
+}
+
+function fenixV20MigrationRows(snapshot, side){
+  const migrations = fenixV20MigrationProducts(snapshot)
+    .filter(fenixV20IsBroadbandMigration);
+
+  if(!migrations.length) return "";
+
+  if(side === "current"){
+    return migrations.map(m => `
+      <div class="plan-detail-row fenix-v20-broadband-row">
+        <strong>Banda Larga — ${esc(m.currentName || "Produto atual")}</strong>
+        <span>${money((Number(m.currentValueCents)||0) * (Number(m.quantity)||1))}</span>
+      </div>
+    `).join("");
+  }
+
+  return migrations
+    .filter(m => m.keepInNew !== false)
+    .map(m => `
+      <div class="plan-detail-row fenix-v20-broadband-row">
+        <strong>Banda Larga — ${esc(m.newName || "Novo produto")}</strong>
+        <span>${money(Number(m.newValueCents)||0)}</span>
+      </div>
+    `).join("");
+}
+
+function fenixV20EnsureSectionInPlan(markup, planStart, planEnd, title, rows){
+  if(!rows) return markup;
+
+  let block = markup.slice(planStart, planEnd);
+
+  // Se as linhas já estiverem presentes, não duplica.
+  const plainRows = rows.replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim();
+  const marker = plainRows.split("R$")[0].trim();
+  if(marker && block.replace(/<[^>]+>/g," ").replace(/\s+/g," ").includes(marker)){
+    return markup;
+  }
+
+  const pricePosLocal = block.indexOf('<div class="plan-price">');
+  if(pricePosLocal < 0) return markup;
+
+  let detailsStartLocal = block.lastIndexOf('<div class="plan-details">', pricePosLocal);
+
+  if(detailsStartLocal >= 0){
+    const detailsCloseLocal = block.indexOf('</div>', detailsStartLocal);
+    if(detailsCloseLocal >= 0 && detailsCloseLocal < pricePosLocal){
+      const details = block.slice(detailsStartLocal, detailsCloseLocal + 6);
+      const titleRegex = new RegExp(
+        `<span class="plan-detail-title">\\s*${title.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}\\s*<\\/span>`,
+        "i"
+      );
+
+      let newDetails;
+      if(titleRegex.test(details)){
+        newDetails = details.replace(titleRegex, m => m + rows);
+      }else{
+        newDetails = details.replace('</div>', `<span class="plan-detail-title">${title}</span>${rows}</div>`);
+      }
+
+      block = block.slice(0, detailsStartLocal) + newDetails + block.slice(detailsCloseLocal + 6);
+    }else{
+      block = block.slice(0, pricePosLocal) +
+        `<div class="plan-details"><span class="plan-detail-title">${title}</span>${rows}</div>` +
+        block.slice(pricePosLocal);
+    }
+  }else{
+    block = block.slice(0, pricePosLocal) +
+      `<div class="plan-details"><span class="plan-detail-title">${title}</span>${rows}</div>` +
+      block.slice(pricePosLocal);
+  }
+
+  return markup.slice(0, planStart) + block + markup.slice(planEnd);
+}
+
+const fenixV20ProposalBase = proposalHTML;
+proposalHTML = function(snapshot, fenixNumber=""){
+  let html = fenixV20ProposalBase(snapshot, fenixNumber);
+
+  // PLANO ATUAL: produto antigo + valor atual.
+  let currentStart = html.indexOf('<div class="proposal-plan">');
+  let newStart = html.indexOf('<div class="proposal-plan new">');
+  if(currentStart >= 0 && newStart > currentStart){
+    html = fenixV20EnsureSectionInPlan(
+      html,
+      currentStart,
+      newStart,
+      "PRODUTOS JÁ ATIVOS",
+      fenixV20MigrationRows(snapshot, "current")
+    );
+  }
+
+  // Recalcula posições porque o HTML pode ter aumentado.
+  newStart = html.indexOf('<div class="proposal-plan new">');
+  if(newStart >= 0){
+    let newEnd = html.indexOf('</div></div>', newStart);
+    if(newEnd < 0) newEnd = html.length;
+    else newEnd += 6;
+
+    // PLANO NOVO: produto para o qual está migrando + novo valor.
+    html = fenixV20EnsureSectionInPlan(
+      html,
+      newStart,
+      newEnd,
+      "SOLUÇÕES CONTRATADAS",
+      fenixV20MigrationRows(snapshot, "new")
+    );
+  }
+
+  return html;
+};
+
+
+// Re-renderiza linhas após carregamento/duplicação.
+window.addEventListener("load", ()=>{
+  setTimeout(()=>{ try{ renderMobile(); }catch(e){ console.error(e); } }, 900);
+  setTimeout(()=>{ try{ renderMobile(); }catch(e){ console.error(e); } }, 3500);
+});
+
+
+
+// ============================================================
+// FÊNIX ONE v22 — AJUSTES 31/08–02/09/2026
+// ============================================================
+
+// ---------- 1. SALDO 10GB + DESTINO DOS SERVIÇOS ----------
+const FENIX_V22_SALDO_ID = -990010;
+
+function fenixV22EnsureSaldo(){
+  state.services = Array.isArray(state.services) ? state.services : [];
+  if(!state.services.some(s => Number(s.id) === FENIX_V22_SALDO_ID ||
+      fenixNorm(s.name).includes("10 gb redes sociais"))){
+    state.services.push({
+      id:FENIX_V22_SALDO_ID,
+      name:"Saldo — 10 GB Redes Sociais, Apps e Streaming",
+      active:true,
+      fenixActiveInternet:false,
+      fenixSaldo10:true
+    });
+  }
+}
+
+const fenixV22RenderCatalogsBase = renderCatalogs;
+renderCatalogs = function(){
+  const r = fenixV22RenderCatalogsBase();
+  fenixV22EnsureSaldo();
+  renderServices();
+  return r;
+};
+
+renderServices = function(){
+  fenixV22EnsureSaldo();
+  const host = $("servicesGrid");
+  if(!host) return;
+
+  host.innerHTML = (state.services||[]).map(s=>{
+    const x = state.serviceSelections[s.id];
+    const currentAlso = x?.currentAlso !== false;
+    return `<div class="service-card ${s.fenixActiveInternet?"fenix-active-internet":""}" data-service="${s.id}">
+      <label class="service-head">
+        <input type="checkbox" class="service-toggle" ${x?.enabled?"checked":""}>
+        <span>${esc(s.name)}</span>
+      </label>
+      <div class="service-fields ${x?.enabled?"":"hidden"}">
+        <label>Quantidade
+          <input class="service-qty" type="number" min="1" value="${x?.quantity||1}">
+        </label>
+        <label>Valor unitário
+          <input class="service-value money-input" inputmode="decimal"
+            value="${x?.unitValueCents?money(x.unitValueCents):""}" placeholder="R$ 0,00">
+        </label>
+        <label>Onde ficará?
+          <select class="service-placement">
+            <option value="both" ${currentAlso?"selected":""}>Plano Atual e Plano Novo</option>
+            <option value="new" ${!currentAlso?"selected":""}>Apenas Plano Novo</option>
+          </select>
+        </label>
+        <div class="fenix-v22-service-class">
+          ${currentAlso
+            ? '<strong>SERVIÇO JÁ ATIVADO</strong><span>Reflete no Plano Atual e no Plano Novo</span>'
+            : '<strong>SERVIÇO CONTRATADO</strong><span>Reflete apenas no Plano Novo</span>'}
+        </div>
+        <button type="button" class="item-remove fenix-v22-service-remove">Remover serviço</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  $$("[data-service]").forEach(card=>{
+    const id = Number(card.dataset.service);
+    const toggle = card.querySelector(".service-toggle");
+    const fields = card.querySelector(".service-fields");
+    const qty = card.querySelector(".service-qty");
+    const val = card.querySelector(".service-value");
+    const placement = card.querySelector(".service-placement");
+    const remove = card.querySelector(".fenix-v22-service-remove");
+
+    const sync = ()=>{
+      if(!toggle.checked){
+        delete state.serviceSelections[id];
+      }else{
+        state.serviceSelections[id] = {
+          enabled:true,
+          quantity:Math.max(1,Number(qty.value)||1),
+          unitValueCents:cents(val.value),
+          keepNew:true,
+          currentAlso:placement.value === "both",
+          placement:placement.value
+        };
+      }
+      fields.classList.toggle("hidden",!toggle.checked);
+      const cls = card.querySelector(".fenix-v22-service-class");
+      if(cls){
+        cls.innerHTML = placement.value==="both"
+          ? '<strong>SERVIÇO JÁ ATIVADO</strong><span>Reflete no Plano Atual e no Plano Novo</span>'
+          : '<strong>SERVIÇO CONTRATADO</strong><span>Reflete apenas no Plano Novo</span>';
+      }
+      updateCalc();
+    };
+
+    toggle.onchange=sync;
+    qty.oninput=sync;
+    placement.onchange=sync;
+    val.oninput=sync;
+    val.onblur=()=>{if(val.value)formatMoneyInput(val);sync()};
+    remove.onclick=()=>{
+      toggle.checked=false;
+      delete state.serviceSelections[id];
+      renderServices();
+      updateCalc();
+    };
+  });
+};
+
+serviceTotals = function(){
+  let current=0,newTotal=0;
+  const selected=[];
+  for(const s of (state.services||[])){
+    const x=state.serviceSelections[s.id];
+    if(!x?.enabled) continue;
+    const quantity=Math.max(1,Number(x.quantity)||1);
+    const unitValueCents=Number(x.unitValueCents)||0;
+    const totalCents=quantity*unitValueCents;
+    const currentAlso=x.currentAlso !== false && x.placement !== "new";
+    if(currentAlso) current += totalCents;
+    newTotal += totalCents;
+    selected.push({
+      serviceId:s.id,name:s.name,quantity,unitValueCents,totalCents,
+      keepNew:true,currentAlso,placement:currentAlso?"both":"new",
+      classification:currentAlso?"SERVIÇO JÁ ATIVADO":"SERVIÇO CONTRATADO",
+      fenixActiveInternet:!!s.fenixActiveInternet,
+      fenixGb:Number(s.fenixGb)||0,
+      fenixProductId:s.fenixProductId||null
+    });
+  }
+  return {current,newTotal,selected};
+};
+
+fenixV14ActiveInternetTotals = function(){
+  const svc=serviceTotals();
+  let currentGb=0,newGb=0;
+  for(const item of (svc.selected||[])){
+    if(!item.fenixActiveInternet) continue;
+    const gb=(Number(item.fenixGb)||0)*(Number(item.quantity)||1);
+    if(item.currentAlso !== false) currentGb += gb;
+    newGb += gb;
+  }
+  return {currentGb,newGb,svc};
+};
+
+v7CurrentServices = function(){
+  return (calc().svc?.selected||[])
+    .filter(s=>s.currentAlso !== false)
+    .map(s=>({...s,destination:"both",classification:"SERVIÇO JÁ ATIVADO"}));
+};
+
+v7NewServices = function(){
+  return (calc().svc?.selected||[])
+    .map(s=>({...s,classification:s.currentAlso===false?"SERVIÇO CONTRATADO":"SERVIÇO JÁ ATIVADO"}));
+};
+
+
+// ---------- 2. DATA AUTOMÁTICA: 1 DIA DE VALIDADE, MAS EDITÁVEL ----------
+let fenixV22ValidityManuallyChanged=false;
+
+function fenixV22TomorrowFrom(iso){
+  const safe=fenixV18IsoDate(iso,isoToday());
+  const d=new Date(`${safe}T12:00:00`);
+  d.setDate(d.getDate()+1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function fenixV22BindDates(){
+  const p=$("proposalDate"),v=$("validityDate");
+  if(!p||!v)return;
+  if(!p.value)p.value=isoToday();
+  if(!v.value)v.value=fenixV22TomorrowFrom(p.value);
+
+  p.onchange=()=>{
+    if(!fenixV22ValidityManuallyChanged) v.value=fenixV22TomorrowFrom(p.value);
+  };
+  v.onchange=()=>{fenixV22ValidityManuallyChanged=true};
+}
+const fenixV22ResetBase=reset;
+reset=function(){
+  fenixV22ValidityManuallyChanged=false;
+  const r=fenixV22ResetBase();
+  setTimeout(fenixV22BindDates,0);
+  return r;
+};
+
+
+// ---------- 3. REVISAR / EDITAR A PROPOSTA ----------
+function fenixV22EnsureReviewButtons(){
+  const actions=document.querySelector("#calculatorView .total-panel .actions-end");
+  if(actions && !$("fenixReviewProposalBtn")){
+    const b=document.createElement("button");
+    b.id="fenixReviewProposalBtn";
+    b.type="button";
+    b.className="btn btn-secondary btn-lg";
+    b.textContent="Revisar / Editar";
+    actions.prepend(b);
+    b.onclick=async()=>{
+      await fenixOpenProposalPreviewStable();
+      setTimeout(()=>fenixV22SetEditing(true),80);
+    };
+  }
+
+  const bar=document.querySelector("#proposalModal .proposal-action-bar");
+  if(bar && !$("fenixEditPreviewBtn")){
+    const b=document.createElement("button");
+    b.id="fenixEditPreviewBtn";
+    b.type="button";
+    b.className="btn btn-secondary";
+    b.textContent="✏️ Revisar / Editar";
+    bar.prepend(b);
+    b.onclick=()=>fenixV22SetEditing(!$("proposalDocument")?.classList.contains("fenix-review-editing"));
+  }
+}
+
+function fenixV22SetEditing(on){
+  const doc=$("proposalDocument"),btn=$("fenixEditPreviewBtn");
+  if(!doc)return;
+  doc.classList.toggle("fenix-review-editing",!!on);
+  doc.contentEditable=on?"true":"false";
+  doc.spellcheck=false;
+  if(btn)btn.textContent=on?"✓ Concluir revisão":"✏️ Revisar / Editar";
+  if(on){
+    toast("Modo de revisão ativado. Você pode editar diretamente qualquer informação do Plano Atual e do Plano Novo.","success");
+    setTimeout(()=>doc.focus(),50);
+  }else{
+    fenixV22CaptureReview();
+    toast("Revisão aplicada à proposta.","success");
+  }
+}
+
+function fenixV22CaptureReview(){
+  const doc=$("proposalDocument");
+  if(!doc || !state.previewPayload?.client_snapshot) return;
+  const clone=doc.cloneNode(true);
+  clone.removeAttribute("contenteditable");
+  clone.classList.remove("fenix-review-editing");
+  state.previewPayload.client_snapshot.reviewedHtml=clone.innerHTML;
+  state.previewPayload.internal_data={
+    ...(state.previewPayload.internal_data||{}),
+    proposal_reviewed:true,
+    proposal_reviewed_at:new Date().toISOString()
+  };
+}
+
+document.addEventListener("input",e=>{
+  if(e.target?.closest?.("#proposalDocument.fenix-review-editing")){
+    clearTimeout(window.__fenixV22ReviewTimer);
+    window.__fenixV22ReviewTimer=setTimeout(fenixV22CaptureReview,250);
+  }
+});
+
+const fenixV22ProposalBase=proposalHTML;
+proposalHTML=function(snapshot,fenixNumber=""){
+  if(snapshot?.reviewedHtml){
+    let reviewed=String(snapshot.reviewedHtml);
+    // Ao salvar, inclui o número Fênix sem perder a revisão feita.
+    if(fenixNumber && !/>\s*Proposta\s*</i.test(reviewed)){
+      reviewed=reviewed.replace(
+        /(<div class="client-box">[\s\S]*?)(<\/div>\s*<div class="plan-grid">)/i,
+        `$1<div><span>Proposta</span><strong>${esc(fenixNumber)}</strong></div>$2`
+      );
+    }
+    return reviewed;
+  }
+
+  let markup=fenixV22ProposalBase(snapshot,fenixNumber);
+
+  // Classificação visual dos serviços no Plano Novo.
+  const newOnly=(snapshot?.newServices||[]).filter(s=>s.currentAlso===false);
+  if(newOnly.length){
+    const newStart=markup.indexOf('<div class="proposal-plan new">');
+    if(newStart>=0){
+      const pricePos=markup.indexOf('<div class="plan-price">',newStart);
+      if(pricePos>newStart){
+        const rows=newOnly.map(s=>`<div class="plan-detail-row"><strong>${esc(s.name)}</strong></div>`).join("");
+        const section=`<span class="plan-detail-title">SERVIÇOS CONTRATADOS</span>${rows}`;
+        const names=newOnly.map(s=>esc(s.name));
+        // Remove as linhas new-only do bloco genérico para não duplicar.
+        for(const name of names){
+          const safe=name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+          const re=new RegExp(`<div class="plan-detail-row"><strong>${safe}<\\/strong><\\/div>`,"gi");
+          markup=markup.replace(re,"");
+        }
+        const p2=markup.indexOf('<div class="plan-price">',markup.indexOf('<div class="proposal-plan new">'));
+        markup=markup.slice(0,p2)+section+markup.slice(p2);
+      }
+    }
+  }
+  return markup;
+};
+
+// Captura a revisão antes de enviar e preserva no banco/snapshot.
+const fenixV22SendBase=fenixSendPreviewFinal;
+fenixSendPreviewFinal=async function(){
+  if($("proposalDocument")?.classList.contains("fenix-review-editing")){
+    fenixV22SetEditing(false);
+  }else{
+    fenixV22CaptureReview();
+  }
+  const reviewed=state.previewPayload?.client_snapshot?.reviewedHtml||"";
+  const result=await fenixV22SendBase();
+  if(result && reviewed && $("proposalDocument")){
+    const snap={...(result.client_snapshot||{}),reviewedHtml:reviewed};
+    $("proposalDocument").innerHTML=proposalHTML(snap,result.fenix_number||"");
+  }
+  return result;
+};
+
+
+// ---------- 4. MENU LATERAL SEMPRE PODE SER ESCONDIDO / ABERTO ----------
+function fenixV22FloatingSidebar(){
+  let b=$("fenixSidebarFloatingV22");
+  if(!b){
+    b=document.createElement("button");
+    b.id="fenixSidebarFloatingV22";
+    b.type="button";
+    b.className="fenix-sidebar-floating";
+    document.body.appendChild(b);
+  }
+  const sync=()=>{
+    const collapsed=document.body.classList.contains("fenix-sidebar-collapsed");
+    b.textContent=collapsed?"☰":"‹";
+    b.title=collapsed?"Mostrar menu lateral":"Esconder menu lateral";
+    b.setAttribute("aria-label",b.title);
+  };
+  b.onclick=()=>{
+    fenixV18SidebarApply(!document.body.classList.contains("fenix-sidebar-collapsed"));
+    sync();
+  };
+  sync();
+}
+
+
+// ---------- 5. SOM PARA NOVAS NOTIFICAÇÕES DA SUPERVISORA ----------
+let fenixV22SupervisorPoll=null;
+function fenixV22SupervisorNotificationWatch(){
+  if(fenixV22SupervisorPoll)clearInterval(fenixV22SupervisorPoll);
+  if(!supervisor())return;
+  // loadNotifications já possui a comparação de IDs e o som da v14.
+  fenixV22SupervisorPoll=setInterval(async()=>{
+    try{await loadNotifications()}catch(e){console.error("Notificações supervisora:",e)}
+  },30000);
+}
+
+
+// ---------- 6. INICIALIZAÇÃO ----------
+function fenixV22Init(){
+  fenixV22EnsureSaldo();
+  fenixV22BindDates();
+  fenixV22EnsureReviewButtons();
+  fenixV22FloatingSidebar();
+  fenixV22SupervisorNotificationWatch();
+  try{renderServices()}catch(e){console.error(e)}
+  try{renderMobile()}catch(e){console.error(e)}
+  try{updateCalc()}catch(e){console.error(e)}
+}
+
+window.addEventListener("load",()=>{
+  setTimeout(fenixV22Init,1000);
+  setTimeout(fenixV22Init,4200);
+});
+document.addEventListener("click",e=>{
+  if(e.target?.closest?.(".nav-item"))setTimeout(()=>{
+    fenixV22EnsureReviewButtons();
+    fenixV22FloatingSidebar();
+  },80);
+});

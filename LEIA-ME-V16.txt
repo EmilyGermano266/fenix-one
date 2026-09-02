@@ -1,0 +1,16 @@
+FÊNIX ONE v16 — INTERFACE MAIOR
+
+Ajuste exclusivamente visual sobre a v15:
+- Fontes maiores.
+- Campos maiores.
+- Botões maiores.
+- Menu lateral maior.
+- Títulos, resumos e tabelas com melhor leitura.
+- Tela Proposta de Aparelhos ampliada.
+- Mais espaço vertical para não comprimir as informações.
+- Nenhuma regra de cálculo ou funcionalidade da v15 foi alterada.
+
+Atualização:
+- Substitua index.html, script.js, style.css e service-worker.js juntos.
+- Não precisa executar SQL.
+- Depois do deploy, faça Ctrl + F5 uma vez.

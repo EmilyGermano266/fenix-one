@@ -1,0 +1,8 @@
+FÊNIX ONE v21 — INTERFACE MAIOR
+- Letras, títulos, campos e botões maiores em todo o sistema.
+- Layout responsivo para continuar cabendo na tela.
+- Menu lateral recolhível preservado.
+- Todos os ajustes da v20 preservados.
+- Não precisa executar SQL.
+Atualize juntos: index.html, script.js, style.css e service-worker.js.
+Depois aguarde a Vercel ficar Ready e faça Ctrl + F5.

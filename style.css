@@ -1979,3 +1979,193 @@ html,body{max-width:100%;overflow-x:hidden}
     width:100%!important;
   }
 }
+
+
+/* ============================================================
+   FÊNIX ONE v20 — LINHAS COM BOTÃO REMOVER SEM CORTAR
+   ============================================================ */
+#mobileItems.items-list{
+  overflow:visible!important;
+}
+
+#mobileItems .fenix-v20-mobile-row{
+  display:grid!important;
+  grid-template-columns:minmax(260px,1.8fr) minmax(70px,.45fr) minmax(80px,.5fr) minmax(110px,.65fr) 110px!important;
+  gap:12px!important;
+  align-items:center!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+  overflow:visible!important;
+}
+
+#mobileItems .fenix-v20-remove-mobile{
+  display:inline-flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  position:static!important;
+  width:110px!important;
+  min-width:110px!important;
+  justify-content:center!important;
+  align-items:center!important;
+}
+
+@media(max-width:1050px){
+  #mobileItems .fenix-v20-mobile-row{
+    grid-template-columns:minmax(220px,1fr) 70px 80px 105px!important;
+  }
+  #mobileItems .fenix-v20-remove-mobile{
+    grid-column:1/-1!important;
+    width:100%!important;
+  }
+}
+
+.fenix-v20-broadband-row strong{
+  max-width:75%!important;
+}
+
+/* FÊNIX ONE v21 — interface maior e legível sem estourar a tela */
+:root{--v21-body:15px;--v21-small:13px;--v21-label:13.5px;--v21-input:14px;--v21-button:14px}
+html{font-size:16px!important}
+body{font-size:var(--v21-body)!important;line-height:1.42!important}
+h1{font-size:clamp(24px,2vw,31px)!important;line-height:1.15!important}
+h2{font-size:clamp(20px,1.65vw,27px)!important;line-height:1.18!important}
+h3{font-size:clamp(17px,1.35vw,22px)!important;line-height:1.2!important}
+h4{font-size:16px!important}
+small,.muted,.eyebrow,.kicker,.helper,.subtitle{font-size:var(--v21-small)!important;line-height:1.4!important}
+label,.field label,.form-field label,.control label{font-size:var(--v21-label)!important;font-weight:750!important;line-height:1.25!important}
+input,select,textarea{font-size:var(--v21-input)!important;min-height:42px!important;padding:9px 11px!important;line-height:1.25!important;max-width:100%!important;box-sizing:border-box!important}
+input[type="checkbox"],input[type="radio"]{min-height:auto!important;width:16px!important;height:16px!important;padding:0!important}
+button,.btn,.button,a.btn{font-size:var(--v21-button)!important;min-height:40px!important;padding:9px 14px!important;line-height:1.2!important}
+.sidebar,aside{font-size:14px!important}
+.sidebar a,.sidebar button,.nav-item,.menu-item{font-size:14px!important;line-height:1.25!important}
+.card,.panel,.section,.form-section{font-size:15px!important}
+.card-title,.section-title,.panel-title{font-size:17px!important;line-height:1.2!important}
+table{font-size:13.5px!important} th{font-size:13px!important} td,th{padding-top:10px!important;padding-bottom:10px!important}
+.item-row,.service-card,.product-card{font-size:14px!important}
+.item-row strong,.service-card strong,.product-card strong{font-size:14.5px!important}
+main,.main,.content,.page-content,.app-content{min-width:0!important;max-width:100%!important}
+.grid,.form-grid,.fields-grid{min-width:0!important}
+.card,.panel,.section,.item-row,.service-card,.product-card{max-width:100%!important;box-sizing:border-box!important}
+@media(max-width:1366px){
+ :root{--v21-body:14.5px;--v21-small:12.5px;--v21-label:13px;--v21-input:13.5px;--v21-button:13.5px}
+ .page-content,.content,main{padding-left:14px!important;padding-right:14px!important}
+}
+@media(max-width:1100px){
+ body{font-size:14px!important}
+ .form-grid,.fields-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ button,.btn,.button,a.btn{white-space:normal!important}
+}
+@media(max-width:760px){
+ .form-grid,.fields-grid{grid-template-columns:1fr!important}
+ input,select,textarea{font-size:14px!important}
+}
+.sidebar-collapse,.sidebar-toggle,[data-sidebar-toggle]{font-size:15px!important;min-width:34px!important;min-height:34px!important}
+
+
+/* ============================================================
+   FÊNIX ONE v22 — LEGIBILIDADE + REVISÃO + EXPORTAÇÃO
+   ============================================================ */
+
+/* Interface geral realmente maior, sem forçar zoom */
+body{font-size:16px!important}
+.view .panel{font-size:16px!important}
+.section-heading h3,.panel-head h3{font-size:24px!important}
+.section-heading p,.panel-head p{font-size:15px!important}
+label,.field label,.form-field label{font-size:15px!important}
+input,select,textarea{font-size:15px!important;min-height:44px!important}
+button,.btn,.mini-btn{font-size:14.5px!important}
+.eyebrow{font-size:13px!important;letter-spacing:.06em!important}
+.summary-strip span,.comparison-grid span{font-size:13px!important}
+.summary-strip strong,.comparison-grid strong{font-size:18px!important}
+.comparison-grid small{font-size:14px!important}
+
+/* Serviços */
+.fenix-v22-service-class{
+  display:flex;flex-direction:column;gap:2px;
+  padding:9px 11px;border:1px solid var(--line);
+  border-radius:10px;background:rgba(102,0,153,.04);
+}
+.fenix-v22-service-class strong{font-size:12px!important;color:var(--purple)}
+.fenix-v22-service-class span{font-size:12px!important;color:var(--muted)}
+.fenix-validity-note{display:block;font-size:11px!important;font-weight:600;color:var(--muted);margin-top:2px}
+
+/* Botão flutuante do menu: permanece acessível mesmo com sidebar escondida */
+.fenix-sidebar-floating{
+  position:fixed!important;left:8px!important;top:50%!important;z-index:9999!important;
+  width:38px!important;height:48px!important;min-height:48px!important;padding:0!important;
+  border-radius:0 12px 12px 0!important;border:1px solid rgba(102,0,153,.2)!important;
+  background:#fff!important;color:var(--purple)!important;
+  box-shadow:0 5px 18px rgba(30,15,40,.14)!important;
+  font-size:24px!important;font-weight:900!important;
+}
+body.fenix-sidebar-collapsed .fenix-sidebar-floating{left:0!important}
+
+/* Revisão direta */
+#calculatorView .total-panel .actions-end{gap:10px!important;flex-wrap:wrap!important}
+#proposalDocument.fenix-review-editing{
+  outline:3px solid rgba(102,0,153,.28)!important;
+  outline-offset:4px!important;
+  cursor:text!important;
+}
+#proposalDocument.fenix-review-editing [contenteditable],
+#proposalDocument.fenix-review-editing *{cursor:text}
+#proposalDocument.fenix-review-editing .proposal-plan{
+  box-shadow:0 0 0 2px rgba(102,0,153,.10) inset!important;
+}
+
+/* Proposta na tela e arquivo: letras maiores, cards flexíveis e nada cortado */
+.proposal-modal-card{width:min(1180px,96vw)!important;max-width:1180px!important}
+.proposal-document{
+  width:100%!important;max-width:100%!important;
+  overflow:visible!important;box-sizing:border-box!important;
+  font-size:16px!important;line-height:1.38!important;
+}
+.proposal-document .proposal-top h2{font-size:30px!important}
+.proposal-document .proposal-top p{font-size:14px!important}
+.proposal-document .proposal-top small{font-size:13px!important}
+.proposal-document .client-box div span,
+.proposal-document .proposal-plan>span:first-child,
+.proposal-document .plan-detail-title{font-size:12px!important}
+.proposal-document .client-box div strong{font-size:15px!important}
+.proposal-document .plan-row{font-size:15px!important;align-items:flex-start!important}
+.proposal-document .plan-row b{font-size:15px!important;white-space:normal!important}
+.proposal-document .plan-detail-row,
+.proposal-document .current-product-line{
+  display:flex!important;align-items:flex-start!important;justify-content:space-between!important;
+  gap:12px!important;min-width:0!important;height:auto!important;
+}
+.proposal-document .plan-detail-row strong,
+.proposal-document .current-product-line strong{
+  font-size:14px!important;white-space:normal!important;overflow-wrap:anywhere!important;min-width:0!important;
+}
+.proposal-document .plan-detail-row span,
+.proposal-document .current-product-line span{font-size:13px!important;white-space:normal!important}
+.proposal-document .plan-price{font-size:29px!important}
+.proposal-document .plan-price small{font-size:13px!important}
+.proposal-document .proposal-benefits span{font-size:12px!important;white-space:normal!important}
+.proposal-document .proposal-plan{
+  min-width:0!important;height:auto!important;overflow:visible!important;
+  break-inside:avoid!important;page-break-inside:avoid!important;
+}
+.proposal-document .plan-grid{align-items:stretch!important;min-width:0!important}
+.proposal-document .plan-details{height:auto!important;overflow:visible!important}
+
+/* Captura/exportação: largura previsível e conteúdo completo */
+body.capture-proposal .proposal-document{
+  width:1100px!important;max-width:1100px!important;
+  height:auto!important;max-height:none!important;overflow:visible!important;
+}
+body.capture-proposal .proposal-document *{
+  max-height:none!important;
+}
+
+/* Em telas menores reorganiza, sem diminuir excessivamente as letras */
+@media(max-width:1050px){
+  .proposal-document .plan-grid{grid-template-columns:1fr!important}
+  .proposal-modal-card{width:97vw!important}
+}
+@media(max-width:760px){
+  body{font-size:15px!important}
+  .section-heading h3,.panel-head h3{font-size:21px!important}
+  .fenix-sidebar-floating{top:auto!important;bottom:22px!important}
+}

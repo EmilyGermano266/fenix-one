@@ -1,0 +1,18 @@
+FÊNIX ONE v19 — REMOÇÃO DE ITENS
+
+Restaurado e reforçado:
+- Móvel / Migrações / E-SIM / Linha Nova: botão Remover.
+- Pacotes SME: botão Remover.
+- Serviços já ativos: botão "Remover serviço" além do checkbox.
+- Soluções Contratadas: botão Remover.
+
+Os botões ficam visíveis e há uma camada extra de segurança nos eventos de clique.
+
+Mantidas as melhorias da v18:
+- Menu lateral recolhível.
+- Interface maior.
+- Correção de data / Invalid time value.
+
+Não precisa executar SQL.
+Substitua index.html, script.js, style.css e service-worker.js juntos.
+Depois do deploy automático, faça Ctrl + F5 uma vez.

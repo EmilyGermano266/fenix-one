@@ -1,0 +1,27 @@
+FÊNIX ONE v22 — AJUSTES CONSOLIDADOS
+
+1. Botão Remover mantido/garantido nas Migrações, E-SIM e Linha Nova.
+2. Conferência ganhou Revisar / Editar:
+   - abre a proposta e permite editar diretamente qualquer informação visível
+     do Plano Atual e do Plano Novo antes de salvar/enviar.
+   - a revisão é preservada no snapshot da proposta.
+3. Adicionado: Saldo — 10 GB Redes Sociais, Apps e Streaming.
+4. Serviços:
+   - Plano Atual e Plano Novo = SERVIÇO JÁ ATIVADO.
+   - Apenas Plano Novo = SERVIÇO CONTRATADO.
+5. Validade automática de 1 dia, mantendo alteração manual.
+6. Interface geral com letras maiores, responsiva.
+7. Botão flutuante para esconder/mostrar a aba lateral sempre disponível.
+8. Perfil Supervisora verifica novas notificações e toca o aviso sonoro.
+9. Tela de revisão e proposta final com letras maiores e regras para evitar cortes
+   ao salvar PDF/imagem.
+
+Não precisa executar SQL.
+
+Substitua juntos no GitHub:
+- index.html
+- script.js
+- style.css
+- service-worker.js
+
+Depois aguarde o deploy automático da Vercel e faça Ctrl + F5.
