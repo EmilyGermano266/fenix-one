@@ -1,5 +1,5 @@
-const CACHE_NAME = "fenix-one-v26-20260915";
-const APP_SHELL = ["/", "/index.html", "/style.css?v=20260915-v26", "/script.js?v=20260915-v26", "/manifest.json"];
+const CACHE_NAME = "fenix-one-v27-20260918";
+const APP_SHELL = ["/", "/index.html", "/style.css?v=20260918-v27", "/script.js?v=20260918-v27", "/manifest.json"];
 
 self.addEventListener("install", event => {
   self.skipWaiting();

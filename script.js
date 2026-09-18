@@ -7419,3 +7419,230 @@ if(typeof showView==='function'){
   showView=function(id){ const r=fenixV26ShowViewBase(id); if(id==='salesManagementView'){ if($("pageTitle"))$("pageTitle").textContent='Gestão de Vendas'; setTimeout(fenixV26Init,80); } return r; };
 }
 window.addEventListener('load',()=>setTimeout(fenixV26Init,6500));
+
+// ============================================================
+// FÊNIX ONE v27 — CONSOLIDAÇÃO FINAL SOLICITADA
+// Acrescenta Gestão de Vendas detalhada, Resultado Diário ampliado,
+// confirmações no Dashboard e limpeza da proposta. Preserva dados v24-v26.
+// ============================================================
+
+// ---------- Gestão de Vendas: múltiplos itens por categoria ----------
+const FENIX_V27_SALES_TABLE = "fenix_sales_management";
+const FENIX_V27_DAILY_TABLE = "consultant_supervisor_daily_totals";
+const fenixV27Draft = { mobile: [], device: [], basic_fixed: [], advanced_fixed: [], bl_migration: [] };
+const fenixV27Host = {mobile:"fvmMobileItems",device:"fvmDeviceItems",basic_fixed:"fvmBasicFixedItems",advanced_fixed:"fvmAdvancedFixedItems",bl_migration:"fvmBlMigrationItems"};
+function fenixV27Num(v){return Math.max(0,Math.trunc(Number(v)||0))}
+function fenixV27MoneyCents(v){return Math.max(0,cents(String(v??"")))}
+function fenixV27ItemHtml(cat,item,i){
+  const remove=`<button type="button" class="fvm-remove-line" data-cat="${cat}" data-index="${i}" aria-label="Remover">×</button>`;
+  if(cat==="mobile") return `<div class="fvm-item-line"><label>Tipo<select class="fvm-line-type"><option value="ALTA" ${item.type==="ALTA"?"selected":""}>ALTA</option><option value="PN" ${item.type==="PN"?"selected":""}>PN</option></select></label><label>Descrição<input class="fvm-line-name" value="${esc(item.name||"")}" placeholder="Ex.: Plano 20 GB"></label><label>Quantidade<input class="fvm-line-qty" type="number" min="1" value="${item.qty||1}"></label><label>Receita (R$)<input class="fvm-line-value" inputmode="decimal" value="${item.valueCents?money(item.valueCents):""}" placeholder="0,00"></label>${remove}</div>`;
+  if(cat==="device") return `<div class="fvm-item-line"><label>Modelo<input class="fvm-line-name" value="${esc(item.name||"")}" placeholder="Ex.: Samsung Galaxy A56"></label><label>Quantidade<input class="fvm-line-qty" type="number" min="1" value="${item.qty||1}"></label><label>Valor total (R$)<input class="fvm-line-value" inputmode="decimal" value="${item.valueCents?money(item.valueCents):""}" placeholder="0,00"></label>${remove}</div>`;
+  if(cat==="bl_migration") return `<div class="fvm-item-line"><label>Descrição<input class="fvm-line-name" value="${esc(item.name||"")}" placeholder="Ex.: Migração BL 500 → 700 Mega"></label><label>Quantidade<input class="fvm-line-qty" type="number" min="1" value="${item.qty||1}"></label>${remove}</div>`;
+  return `<div class="fvm-item-line"><label>Produto/Solução<input class="fvm-line-name" value="${esc(item.name||"")}" placeholder="Descrição do produto"></label><label>Quantidade<input class="fvm-line-qty" type="number" min="1" value="${item.qty||1}"></label><label>Receita (R$)<input class="fvm-line-value" inputmode="decimal" value="${item.valueCents?money(item.valueCents):""}" placeholder="0,00"></label>${remove}</div>`;
+}
+function fenixV27RenderDraft(cat){const host=$(fenixV27Host[cat]);if(!host)return;host.innerHTML=fenixV27Draft[cat].map((x,i)=>fenixV27ItemHtml(cat,x,i)).join("")||`<div class="fvm-empty-line">Nenhum item adicionado. Clique em “Adicionar” para incluir.</div>`;host.querySelectorAll("input,select").forEach(el=>{el.addEventListener("input",()=>fenixV27SyncDraft(cat));el.addEventListener("change",()=>fenixV27SyncDraft(cat));el.addEventListener("blur",()=>{if(el.classList.contains("fvm-line-value")&&el.value){formatMoneyInput(el);fenixV27SyncDraft(cat)}})});host.querySelectorAll(".fvm-remove-line").forEach(b=>b.onclick=()=>{fenixV27Draft[cat].splice(Number(b.dataset.index),1);fenixV27RenderDraft(cat);fenixV27UpdateFormTotals()});}
+function fenixV27SyncDraft(cat){const host=$(fenixV27Host[cat]);if(!host)return;fenixV27Draft[cat]=[...host.querySelectorAll(".fvm-item-line")].map(row=>({type:row.querySelector(".fvm-line-type")?.value||null,name:row.querySelector(".fvm-line-name")?.value.trim()||"",qty:fenixV27Num(row.querySelector(".fvm-line-qty")?.value)||1,valueCents:cat==="bl_migration"?0:fenixV27MoneyCents(row.querySelector(".fvm-line-value")?.value)}));fenixV27UpdateFormTotals()}
+function fenixV27Add(cat){fenixV27Draft[cat].push(cat==="mobile"?{type:"ALTA",name:"",qty:1,valueCents:0}: {name:"",qty:1,valueCents:0});fenixV27RenderDraft(cat);const host=$(fenixV27Host[cat]);host?.querySelectorAll(".fvm-line-name")?.[host.querySelectorAll(".fvm-line-name").length-1]?.focus();}
+function fenixV27UpdateFormTotals(){
+  const mobile=fenixV27Draft.mobile.reduce((s,x)=>s+x.qty,0),bl=fenixV27Draft.bl_migration.reduce((s,x)=>s+x.qty,0),devices=fenixV27Draft.device.reduce((s,x)=>s+x.qty,0),deviceRev=fenixV27Draft.device.reduce((s,x)=>s+x.valueCents,0),revenue=["mobile","basic_fixed","advanced_fixed"].reduce((s,c)=>s+fenixV27Draft[c].reduce((a,x)=>a+x.valueCents,0),0);
+  if($("fvmFormMobileMig"))$("fvmFormMobileMig").textContent=String(mobile);if($("fvmFormBlMig"))$("fvmFormBlMig").textContent=String(bl);if($("fvmFormDevices"))$("fvmFormDevices").textContent=`${devices} un.`;if($("fvmFormDeviceRevenue"))$("fvmFormDeviceRevenue").textContent=money(deviceRev);if($("fvmFormRevenue"))$("fvmFormRevenue").textContent=money(revenue);
+}
+function fenixV27ClearDraft(){Object.keys(fenixV27Draft).forEach(k=>fenixV27Draft[k]=[]);Object.keys(fenixV27Host).forEach(fenixV27RenderDraft);fenixV27UpdateFormTotals()}
+async function fenixV27SyncDailyFromSales(profileId,date){
+  try{
+    const {data,error}=await db.from(FENIX_V27_SALES_TABLE).select("status,migrations,bl_migrations,device_count,device_revenue_cents,revenue_cents,mobile_revenue_cents,basic_fixed_revenue_cents,advanced_fixed_revenue_cents,mobile_items,device_items,basic_fixed_items,advanced_fixed_items,bl_migration_items").eq("profile_id",profileId).eq("sale_date",date);
+    if(error)throw error;
+    const rows=(data||[]).filter(r=>r.status==="fechada");
+    const agg={mobile_migrations:0,bl_migrations:0,revenue_cents:0,device_count:0,device_revenue_cents:0,mobile_revenue_cents:0,basic_fixed_revenue_cents:0,advanced_fixed_revenue_cents:0};
+    rows.forEach(r=>{agg.mobile_migrations+=Number(r.migrations||0);agg.bl_migrations+=Number(r.bl_migrations||0);agg.revenue_cents+=Number(r.revenue_cents||0);agg.device_count+=Number(r.device_count||0);agg.device_revenue_cents+=Number(r.device_revenue_cents||0);agg.mobile_revenue_cents+=Number(r.mobile_revenue_cents||0);agg.basic_fixed_revenue_cents+=Number(r.basic_fixed_revenue_cents||0);agg.advanced_fixed_revenue_cents+=Number(r.advanced_fixed_revenue_cents||0)});
+    const {data:old}=await db.from(FENIX_V27_DAILY_TABLE).select("manual_override").eq("profile_id",profileId).eq("result_date",date).maybeSingle();
+    if(old?.manual_override)return;
+    if(!rows.length && !old)return;
+    const row={profile_id:profileId,result_date:date,migrations:agg.mobile_migrations,revenue_cents:agg.revenue_cents,mobile_migrations:agg.mobile_migrations,bl_migrations:agg.bl_migrations,device_count:agg.device_count,device_revenue_cents:agg.device_revenue_cents,mobile_revenue_cents:agg.mobile_revenue_cents,basic_fixed_revenue_cents:agg.basic_fixed_revenue_cents,advanced_fixed_revenue_cents:agg.advanced_fixed_revenue_cents,manual_override:false,updated_by:state.session.user.id,updated_at:new Date().toISOString()};
+    await db.from(FENIX_V27_DAILY_TABLE).upsert(row,{onConflict:"profile_id,result_date"});
+  }catch(e){console.error("Sincronização Resultado Diário v27",e)}
+}
+async function fenixV27SaveSale(e){
+  e.preventDefault();
+  if(!state.session?.user?.id)return toast("Sessão expirada. Entre novamente.","error");
+  const date=$("fvmSaleDate")?.value,cnpj=$("fvmCnpj")?.value.trim(),company=$("fvmCompany")?.value.trim(),status=$("fvmSaleStatus")?.value||"fechada";
+  if(!date||!cnpj||!company)return toast("Preencha Data, CNPJ e Razão Social.","error");
+  const clean=cat=>fenixV27Draft[cat].map(x=>({...x,qty:fenixV27Num(x.qty)||1,valueCents:cat==="bl_migration"?0:fenixV27MoneyCents(x.valueCents)}));
+  const mobile=clean("mobile"),device=clean("device"),basic=clean("basic_fixed"),advanced=clean("advanced_fixed"),bl=clean("bl_migration");
+  if(!mobile.length&&!device.length&&!basic.length&&!advanced.length&&!bl.length)return toast("Adicione pelo menos um item da venda.","error");
+  const revenue=mobile.reduce((s,x)=>s+x.valueCents,0)+basic.reduce((s,x)=>s+x.valueCents,0)+advanced.reduce((s,x)=>s+x.valueCents,0),mobileMig=mobile.reduce((s,x)=>s+x.qty,0),blMig=bl.reduce((s,x)=>s+x.qty,0),deviceCount=device.reduce((s,x)=>s+x.qty,0),deviceRev=device.reduce((s,x)=>s+x.valueCents,0);
+  const row={profile_id:state.session.user.id,sale_date:date,cnpj,company_name:company,product_name:"Fechamento por categorias",migrations:mobileMig,revenue_cents:revenue,has_portability:$("fvmPortability")?.value==="true",status,mobile_migrations:mobileMig,bl_migrations:blMig,device_count:deviceCount,device_revenue_cents:deviceRev,mobile_revenue_cents:mobile.reduce((s,x)=>s+x.valueCents,0),basic_fixed_revenue_cents:basic.reduce((s,x)=>s+x.valueCents,0),advanced_fixed_revenue_cents:advanced.reduce((s,x)=>s+x.valueCents,0),mobile_items:mobile,device_items:device,basic_fixed_items:basic,advanced_fixed_items:advanced,bl_migration_items:bl,updated_at:new Date().toISOString()};
+  const btn=$("fvmSaveSale");if(btn){btn.disabled=true;btn.textContent="Salvando..."}
+  try{const {error}=await db.from(FENIX_V27_SALES_TABLE).insert(row);if(error)throw error;await fenixV27SyncDailyFromSales(row.profile_id,date);toast("Venda registrada e Resultado Diário atualizado!","success");$("fvmCnpj").value="";$("fvmCompany").value="";fenixV27ClearDraft();await fenixV27LoadSales();}
+  catch(err){console.error(err);toast(err.message||"Não foi possível salvar a venda.","error")}finally{if(btn){btn.disabled=false;btn.textContent="Salvar venda"}}
+}
+async function fenixV27LoadSales(){
+  if(!$('salesManagementView')||!state.session)return;try{fenixV26PopulateConsultants();const {start,end}=fenixV26MonthRange();let q=db.from(FENIX_V27_SALES_TABLE).select('*').gte('sale_date',start).lte('sale_date',end).order('sale_date',{ascending:false}).order('created_at',{ascending:false});const consultant=$("fvmConsultant")?.value,status=$("fvmStatus")?.value;if(!fenixV26IsSupervisor())q=q.eq('profile_id',state.session.user.id);else if(consultant)q=q.eq('profile_id',consultant);if(status)q=q.eq('status',status);const {data,error}=await q;if(error)throw error;fenixV26Rows=data||[];fenixV27RenderSales();}
+  catch(e){console.error("Gestão de Vendas v27",e);toast(e.message||"Não foi possível carregar a Gestão de Vendas.","error")}
+}
+function fenixV27RenderSales(){
+  const rows=fenixV26Rows||[],closed=rows.filter(r=>r.status==="fechada"),revenue=closed.reduce((s,r)=>s+Number(r.revenue_cents||0),0),mig=closed.reduce((s,r)=>s+Number(r.mobile_migrations??r.migrations??0),0),bl=closed.reduce((s,r)=>s+Number(r.bl_migrations||0),0),dc=closed.reduce((s,r)=>s+Number(r.device_count||0),0),dr=closed.reduce((s,r)=>s+Number(r.device_revenue_cents||0),0),port=closed.filter(r=>r.has_portability).length;
+  if($("fvmSalesCount"))$("fvmSalesCount").textContent=String(closed.length);if($("fvmRevenue"))$("fvmRevenue").textContent=money(revenue);if($("fvmMigrations"))$("fvmMigrations").textContent=String(mig);if($("fvmBlMigrations"))$("fvmBlMigrations").textContent=String(bl);if($("fvmDeviceCount"))$("fvmDeviceCount").textContent=String(dc);if($("fvmDeviceRevenue"))$("fvmDeviceRevenue").textContent=money(dr);if($("fvmPortabilities"))$("fvmPortabilities").textContent=String(port);
+  const wrap=$("fvmTable");if(!wrap)return;if(!rows.length){wrap.innerHTML='<div class="empty-state">Nenhuma venda encontrada para os filtros selecionados.</div>';return}
+  wrap.innerHTML=`<table class="data-table"><thead><tr><th>Data</th><th>Consultor</th><th>CNPJ</th><th>Razão Social</th><th>Móvel</th><th>BL</th><th>Aparelhos</th><th>Receita Geral</th><th>Valor aparelhos</th><th>Portabilidade</th><th>Status</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${brDate(r.sale_date)}</td><td>${esc(fenixV26ProfileName(r.profile_id))}</td><td>${esc(r.cnpj||'-')}</td><td>${esc(r.company_name||'-')}</td><td>${Number(r.mobile_migrations??r.migrations??0)}</td><td>${Number(r.bl_migrations||0)}</td><td>${Number(r.device_count||0)}</td><td>${money(r.revenue_cents)}</td><td>${money(r.device_revenue_cents||0)}</td><td><span class="fenix-port-pill ${r.has_portability?'yes':'no'}">${r.has_portability?'SIM':'NÃO'}</span></td><td><span class="fvm-status fvm-status-${esc(r.status)}">${esc(r.status==='fechada'?'Fechada':r.status==='cancelada'?'Cancelada':'Pendente')}</span></td></tr>`).join('')}</tbody></table>`;
+}
+function fenixV27ExportSales(){
+  if(typeof XLSX==='undefined')return toast('Biblioteca de Excel não carregou.','error');if(!fenixV26Rows?.length)return toast('Não há dados para exportar.','error');
+  const data=fenixV26Rows.map(r=>({Data:brDate(r.sale_date),Consultor:fenixV26ProfileName(r.profile_id),CNPJ:r.cnpj||'',"Razão Social":r.company_name||'',"Migrações Móvel":Number(r.mobile_migrations??r.migrations??0),"Migrações BL":Number(r.bl_migrations||0),"Aparelhos":Number(r.device_count||0),"Receita Geral":Number(r.revenue_cents||0)/100,"Valor dos aparelhos":Number(r.device_revenue_cents||0)/100,Portabilidade:r.has_portability?'Sim':'Não',Status:r.status==='fechada'?'Fechada':r.status==='cancelada'?'Cancelada':'Pendente'}));
+  const ws=XLSX.utils.json_to_sheet(data),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Gestão de Vendas');const month=$("fvmMonth")?.value||'periodo',c=$("fvmConsultant")?.value,who=c?fenixV26ProfileName(c):(fenixV26IsSupervisor()?'Equipe Fênix':fenixV26ProfileName(state.session.user.id));XLSX.writeFile(wb,`Gestao de Vendas - ${fenixV26Safe(who)} - ${month}.xlsx`);
+}
+function fenixV27InitSales(){if(!$('salesManagementView'))return;if($("fvmMonth")&&!$("fvmMonth").value)$("fvmMonth").value=new Date().toISOString().slice(0,7);if($("fvmSaleDate")&&!$("fvmSaleDate").value)$("fvmSaleDate").value=isoToday();fenixV26PopulateConsultants();["fvmMonth","fvmConsultant","fvmStatus"].forEach(id=>$(id)&&($(id).onchange=fenixV27LoadSales));$("fvmRefresh")&&($("fvmRefresh").onclick=fenixV27LoadSales);$("fvmExport")&&($("fvmExport").onclick=fenixV27ExportSales);$("fvmClear")&&($("fvmClear").onclick=()=>{if($("fvmConsultant"))$("fvmConsultant").value="";if($("fvmStatus"))$("fvmStatus").value="";fenixV27LoadSales()});$("fvmSaleForm")&&($("fvmSaleForm").onsubmit=fenixV27SaveSale);$("fvmClearForm")&&($("fvmClearForm").onclick=()=>{ $("fvmCnpj").value="";$("fvmCompany").value="";fenixV27ClearDraft()});document.querySelectorAll(".fvm-add-item").forEach(b=>{b.onclick=()=>fenixV27Add(b.dataset.add)});document.querySelectorAll("[data-port]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-port]").forEach(x=>x.classList.toggle("active",x===b));$("fvmPortability").value=b.dataset.port});Object.keys(fenixV27Draft).forEach(fenixV27RenderDraft);fenixV27UpdateFormTotals();fenixV27LoadSales()}
+
+// ---------- Resultado Diário: categorias + dias zerados + total semanal/mensal ----------
+async function fenixV27LoadDaily(){
+  if(!supervisor())return;fenixV25PopulateConsultants();const month=$("fdrMonth")?.value,profileId=$("fdrConsultant")?.value;if(!month||!profileId){fenixV25DailySavedRows=[];fenixV25RenderDailyGrid();return}const b=fenixV25MonthBounds(month);const {data,error}=await db.from(FENIX_V27_DAILY_TABLE).select('*').eq('profile_id',profileId).gte('result_date',b.start).lt('result_date',b.next).order('result_date');if(error){console.error(error);toast(error.message||'Não foi possível carregar o Resultado Diário.','error');return}fenixV25DailySavedRows=data||[];fenixV25RenderDailyGrid();fenixV27RenderZeroSummary(month)}
+function fenixV27PatchDailyGrid(){const container=$("fdrWeeks");if(!container)return;container.querySelectorAll(".fdr-day-row").forEach(row=>{const old=row.querySelector(".fdr-revenue")?.closest("label");if(!old)return;const date=row.dataset.date,r=(fenixV25DailySavedRows||[]).find(x=>x.result_date===date)||{};old.insertAdjacentHTML("afterend",`<label>Migrações BL<input class="fdr-bl-migrations" type="number" min="0" step="1" value="${Number(r.bl_migrations||0)}" placeholder="0"></label><label>Aparelhos<input class="fdr-device-count" type="number" min="0" step="1" value="${Number(r.device_count||0)}" placeholder="0"></label><label>Valor aparelhos<input class="fdr-device-revenue" type="text" inputmode="decimal" value="${r.device_revenue_cents?fenixV25RevenueInputValue(r.device_revenue_cents):""}" placeholder="0,00"></label>`);});container.querySelectorAll(".fdr-bl-migrations,.fdr-device-count,.fdr-device-revenue").forEach(i=>i.addEventListener("input",fenixV27RecalcDaily));container.querySelectorAll(".fdr-device-revenue").forEach(i=>i.addEventListener("blur",()=>{if(i.value){i.value=fenixV25RevenueInputValue(cents(i.value));fenixV27RecalcDaily()}}));}
+function fenixV27RecalcDaily(){fenixV25RecalculateTotals();let zero=0;document.querySelectorAll("#fdrWeeks .fdr-day-row").forEach(r=>{const m=Number(r.querySelector(".fdr-migrations")?.value)||0,rev=cents(r.querySelector(".fdr-revenue")?.value||"");if(m===0&&rev===0)zero++});const s=$("fdrSummary");if(s)s.dataset.zero=zero;}
+async function fenixV27SaveDaily(){
+  if(!supervisor())return toast("Apenas a Supervisora pode editar o Resultado Diário.","error");const month=$("fdrMonth")?.value,profileId=$("fdrConsultant")?.value;if(!month||!profileId)return toast("Selecione o mês e o consultor.","error");const btn=$("fdrSaveAll"),old=btn?.textContent;if(btn){btn.disabled=true;btn.textContent="Salvando..."}try{
+    const rows=[...document.querySelectorAll("#fdrWeeks .fdr-day-row")],current=fenixV25SavedMap(),upserts=[],deletes=[];
+    rows.forEach(row=>{const date=row.dataset.date,m=fenixV27Num(row.querySelector(".fdr-migrations")?.value),rev=fenixV27MoneyCents(row.querySelector(".fdr-revenue")?.value),bl=fenixV27Num(row.querySelector(".fdr-bl-migrations")?.value),dc=fenixV27Num(row.querySelector(".fdr-device-count")?.value),dr=fenixV27MoneyCents(row.querySelector(".fdr-device-revenue")?.value);if(m||rev||bl||dc||dr)upserts.push({profile_id:profileId,result_date:date,migrations:m,revenue_cents:rev,mobile_migrations:m,bl_migrations:bl,device_count:dc,device_revenue_cents:dr,manual_override:true,updated_by:state.session.user.id,updated_at:new Date().toISOString()});else if(current.has(date))deletes.push(date)});
+    if(deletes.length){const {error}=await db.from(FENIX_V27_DAILY_TABLE).delete().eq("profile_id",profileId).in("result_date",deletes);if(error)throw error}if(upserts.length){const {error}=await db.from(FENIX_V27_DAILY_TABLE).upsert(upserts,{onConflict:"profile_id,result_date"});if(error)throw error}toast("Resultado Diário salvo!","success");await fenixV27LoadDaily();
+  }catch(e){console.error(e);toast(e.message||"Não foi possível salvar o Resultado Diário.","error")}finally{if(btn){btn.disabled=false;btn.textContent=old}}
+}
+async function fenixV27RenderZeroSummary(month){
+  const host=$("fdrZeroSummary");if(!host||!supervisor())return;const b=fenixV25MonthBounds(month),people=fenixV25ActiveConsultants();const {data,error}=await db.from(FENIX_V27_DAILY_TABLE).select("profile_id,result_date,migrations,revenue_cents").gte("result_date",b.start).lt("result_date",b.next);if(error){host.innerHTML="";return}const map=new Map((data||[]).map(r=>[`${r.profile_id}_${r.result_date}`,r]));const today=new Date();const monthDate=new Date(`${month}-01T12:00:00`);const last=monthDate.getMonth()===today.getMonth()&&monthDate.getFullYear()===today.getFullYear()?today.getDate():new Date(b.year,b.mon,0).getDate();const rows=people.map(p=>{let filled=0,zero=0,mig=0,rev=0;for(let d=1;d<=last;d++){const dt=new Date(b.year,b.mon-1,d,12),dow=dt.getDay();if(dow===0||dow===6)continue;const iso=fenixV25IsoDate(b.year,b.mon,d),r=map.get(`${p.id}_${iso}`);if(r){mig+=Number(r.migrations||0);rev+=Number(r.revenue_cents||0);if(Number(r.migrations||0)>0||Number(r.revenue_cents||0)>0)filled++;else zero++}else if(dt<=today)zero++;}return {name:p.full_name||p.name||p.email||"Consultor",filled,zero,mig,rev}});host.innerHTML=`<div class="panel-head"><div><p class="eyebrow">CONTROLE DA EQUIPE</p><h3>Dias zerados por consultor</h3></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Consultor</th><th>Dias preenchidos</th><th>Dias zerados</th><th>Migrações Móvel</th><th>Receita Geral</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.filled}</td><td><strong class="fdr-zero-count">${r.zero}</strong></td><td>${r.mig}</td><td>${money(r.rev)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+// Rebind Resultado Diário after v25/v26 wrappers.
+const fenixV27RenderDailyBase=fenixV25RenderDailyGrid;
+fenixV25RenderDailyGrid=function(){fenixV27RenderDailyBase();setTimeout(fenixV27PatchDailyGrid,0);setTimeout(fenixV27RecalcDaily,0)};
+const fenixV27InitDailyBase=fenixV25InitDailyResults;
+fenixV25InitDailyResults=function(){fenixV27InitDailyBase();if($("fdrMonth"))$("fdrMonth").onchange=fenixV27LoadDaily;if($("fdrConsultant"))$("fdrConsultant").onchange=fenixV27LoadDaily;if($("fdrRefresh"))$("fdrRefresh").onclick=fenixV27LoadDaily;if($("fdrSaveAll"))$("fdrSaveAll").onclick=fenixV27SaveDaily;setTimeout(()=>fenixV27LoadDaily(),50)};
+
+// ---------- Confirmações de rotina: somente no Dashboard da Supervisora ----------
+async function fenixV27LoadDashboardRoutine(){
+  if(!supervisor()||!$("fenixDashRoutineTable"))return;const month=$("fenixDashRoutineMonth")?.value||new Date().toISOString().slice(0,7),consult=$("fenixDashRoutineConsultant")?.value||"";const [y,m]=month.split("-").map(Number),start=`${month}-01`,next=new Date(y,m,1),end=`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,"0")}-01`;let q=db.from("routine_alert_responses").select("*").gte("response_date",start).lt("response_date",end).order("response_date",{ascending:false}).order("created_at",{ascending:false});if(consult)q=q.eq("profile_id",consult);const {data,error}=await q;if(error){$("fenixDashRoutineTable").innerHTML=`<div class="empty-state">${esc(error.message||"Não foi possível carregar as confirmações.")}</div>`;return}const people=[...(state.profiles||[]),state.profile].filter(Boolean),nm=id=>{const p=people.find(x=>String(x.id)===String(id));return p?.full_name||p?.name||p?.email||"Consultor"};$("fenixDashRoutineTable").innerHTML=`<table class="data-table"><thead><tr><th>Consultor</th><th>Data</th><th>Tarefa</th><th>Resposta</th></tr></thead><tbody>${(data||[]).length?(data||[]).map(r=>`<tr><td>${esc(nm(r.profile_id))}</td><td>${brDate(r.response_date)}</td><td>${esc(r.alert_text||r.alert_id||"-")}</td><td><span class="routine-pill ${r.response==="FIZ"?"routine-ok":"routine-no"}">${r.response==="FIZ"?"✅ FIZ":"❌ NÃO CONSEGUI"}</span></td></tr>`).join(""):'<tr><td colspan="4">Nenhuma confirmação registrada no período.</td></tr>'}</tbody></table>`;
+}
+function fenixV27InitDashboardRoutine(){if(!$("fenixDashboardRoutinePanel")||!supervisor())return;if($("fenixDashRoutineMonth")&&!$("fenixDashRoutineMonth").value)$("fenixDashRoutineMonth").value=new Date().toISOString().slice(0,7);const sel=$("fenixDashRoutineConsultant");if(sel){sel.innerHTML='<option value="">Todos os consultores</option>'+fenixV25ActiveConsultants().sort((a,b)=>String(a.full_name||a.name||"").localeCompare(String(b.full_name||b.name||""),"pt-BR")).map(p=>`<option value="${p.id}">${esc(p.full_name||p.name||p.email||"Consultor")}</option>`).join("");sel.onchange=fenixV27LoadDashboardRoutine}$("fenixDashRoutineMonth")&&($("fenixDashRoutineMonth").onchange=fenixV27LoadDashboardRoutine);$("fenixDashRoutineRefresh")&&($("fenixDashRoutineRefresh").onclick=fenixV27LoadDashboardRoutine);fenixV27LoadDashboardRoutine()}
+
+// ---------- Ranking: usa o Resultado Diário consolidado ----------
+fenixV24RevenueRanking=async function(){const el=$("rankingList");if(!el||!state.session?.user)return;const period=$("rankingPeriod")?.value||"month",now=new Date();let start=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`,end=new Date(now.getFullYear(),now.getMonth()+1,1).toISOString().slice(0,10);if(period==="day"||period==="hour")start=now.toISOString().slice(0,10);if(period==="all"){start="1900-01-01";end="2999-12-31"}const {data}=await db.from(FENIX_V27_DAILY_TABLE).select("profile_id,revenue_cents").gte("result_date",start).lt("result_date",end);const people=fenixV25ActiveConsultants(),map=new Map(people.map(p=>[String(p.id),{id:p.id,name:p.full_name||p.name||p.email,revenue:0}]));(data||[]).forEach(r=>{const x=map.get(String(r.profile_id));if(x)x.revenue+=Number(r.revenue_cents||0)});const ranking=[...map.values()].sort((a,b)=>b.revenue-a.revenue||a.name.localeCompare(b.name,"pt-BR"));el.innerHTML=ranking.length?ranking.map((r,i)=>`<div class="ranking-row fenix-revenue-ranking"><div class="ranking-position">${i+1}º</div><div><strong>${esc(r.name)}</strong><small>Receita do período</small></div><div class="ranking-score"><strong>${money(r.revenue)}</strong><small>receita</small></div></div>`).join(""):'<div class="empty-state">Sem resultados no período.</div>';fenixV24RankingMotivation(ranking,period)};
+
+// ---------- Proposta: remove duplicidade de CHIP VIRTUAL/E-SIM sem alterar o restante ----------
+const fenixV27ProposalBase=proposalHTML;
+proposalHTML=function(snapshot,fenixNumber=""){
+  let markup=fenixV27ProposalBase(snapshot,fenixNumber);if(typeof document==="undefined")return markup;const wrap=document.createElement("div");wrap.innerHTML=markup;
+  const remove=[];wrap.querySelectorAll(".proposal-esim-clean,.fenix-esim-inline").forEach(e=>remove.push(e));wrap.querySelectorAll(".plan-detail-row,.plan-row").forEach(e=>{const t=(e.textContent||"").trim().toUpperCase();if(t.includes("CHIP VIRTUAL")||(/^E-SIM\b/.test(t)))remove.push(e)});remove.forEach(e=>e.remove());
+  const details=[...wrap.querySelectorAll(".proposal-plan.new .plan-details")];const target=details.find(d=>d.classList.contains("fenix-v24-section"))||details[0];const esim=(snapshot?.esimDetails||[]).reduce((a,e)=>({q:a.q+Number(e.quantity||0),gb:a.gb+Number(e.totalGb||0)}),{q:0,gb:0});if(target&&esim.q){const el=document.createElement("div");el.className="proposal-esim-clean fenix-v27-esim-clean";el.innerHTML=`<strong>CHIP VIRTUAL:</strong><span>${esim.q} — ${esim.gb} GB</span>`;target.insertBefore(el,target.firstChild)}return wrap.innerHTML;
+};
+
+// ---------- Interface maior + rolagem real ----------
+window.addEventListener("load",()=>{setTimeout(()=>{try{fenixV27InitSales();fenixV27InitDailyResults();fenixV27InitDashboardRoutine();fenixV24RevenueRanking()}catch(e){console.error("Fênix v27 init",e)}},7000)});
+const fenixV27ShowBase=showView;
+showView=function(id){const r=fenixV27ShowBase(id);if(id==="salesManagementView")setTimeout(fenixV27InitSales,80);if(id==="dailyResultsView")setTimeout(fenixV27InitDailyResults,80);if(id==="dashboardView")setTimeout(()=>{fenixV27InitDashboardRoutine();fenixV24RevenueRanking()},120);return r};
+document.addEventListener("click",e=>{if(e.target?.closest?.('[data-view="salesManagementView"]'))setTimeout(fenixV27InitSales,120);if(e.target?.closest?.('[data-view="dailyResultsView"]'))setTimeout(fenixV27InitDailyResults,120);if(e.target?.closest?.('[data-view="dashboardView"]'))setTimeout(fenixV27InitDashboardRoutine,120)});
+
+// ============================================================
+// FÊNIX ONE v27.1 — DIA, TEMPERATURA DA PROPOSTA E METAS
+// ============================================================
+(function(){
+  const V='27.1';
+  window.fenixV27ProposalTemperature = window.fenixV27ProposalTemperature || '';
+  const safeName = v => String(v||'Equipe Fênix').replace(/[^a-zA-Z0-9À-ÿ _-]/g,'').trim()||'Equipe Fênix';
+  const profileName = id => { const p=(state.profiles||[]).find(x=>String(x.id)===String(id)); return p?.full_name||p?.name||p?.email||'Consultor'; };
+  const moneyBR = c => money(Number(c||0));
+
+  // ---------- Temperatura da proposta ----------
+  function ensureTemperatureUI(){
+    const modal=$('proposalModal'), bar=modal?.querySelector('.proposal-action-bar');
+    if(!modal||!bar)return null;
+    let box=$('fenixProposalTemperature');
+    if(!box){
+      box=document.createElement('div'); box.id='fenixProposalTemperature'; box.className='fenix-proposal-temperature';
+      box.innerHTML=`<div><strong>Temperatura da proposta</strong><small>O consultor precisa informar antes de enviar.</small></div><div class="fenix-temp-buttons"><button type="button" data-temp="quente">🔥 PROPOSTA QUENTE</button><button type="button" data-temp="fria">❄️ PROPOSTA FRIA</button></div>`;
+      bar.parentNode.insertBefore(box,bar);
+    }
+    box.querySelectorAll('[data-temp]').forEach(b=>{b.onclick=()=>{window.fenixV27ProposalTemperature=b.dataset.temp;box.querySelectorAll('[data-temp]').forEach(x=>x.classList.toggle('active',x===b));if(state.previewPayload){state.previewPayload.internal_data={...(state.previewPayload.internal_data||{}),proposal_temperature:b.dataset.temp};state.previewPayload.client_snapshot={...(state.previewPayload.client_snapshot||{}),proposalTemperature:b.dataset.temp}};}});
+    box.querySelectorAll('[data-temp]').forEach(b=>b.classList.toggle('active',b.dataset.temp===window.fenixV27ProposalTemperature));
+    return box;
+  }
+  function requireTemperature(){
+    const box=ensureTemperatureUI();
+    const t=window.fenixV27ProposalTemperature;
+    if(t!=='quente'&&t!=='fria'){box?.classList.add('needs-choice');box?.scrollIntoView({behavior:'smooth',block:'center'});toast('Informe se a proposta é QUENTE ou FRIA antes de enviar.','error');return false;}
+    if(state.previewPayload){state.previewPayload.internal_data={...(state.previewPayload.internal_data||{}),proposal_temperature:t};state.previewPayload.client_snapshot={...(state.previewPayload.client_snapshot||{}),proposalTemperature:t};}
+    return true;
+  }
+  const previewBase=preview;
+  preview=function(){ window.fenixV27ProposalTemperature=''; const r=previewBase(); setTimeout(()=>{ensureTemperatureUI();},50); return r; };
+  const sendBase=fenixSendPreviewFinal;
+  fenixSendPreviewFinal=async function(){
+    if(!requireTemperature())return null;
+    const saved=await sendBase();
+    if(saved){
+      try{ await db.from('proposal_events').insert({proposal_id:saved.id,actor_id:state.session.user.id,event_type:'temperatura_registrada',details:{temperature:window.fenixV27ProposalTemperature}}); }catch(e){}
+    }
+    return saved;
+  };
+  const pdfBase=fenixPdfFinal, imageBase=fenixImageFinal;
+  fenixPdfFinal=async function(){if(!requireTemperature())return;return pdfBase();};
+  fenixImageFinal=async function(){if(!requireTemperature())return;return imageBase();};
+  function bindTempExports(){
+    ['pdfPreviewBtn','imagePreviewBtn'].forEach(id=>{const el=$(id);if(!el)return;const fresh=el.cloneNode(true);el.replaceWith(fresh);fresh.onclick=id==='pdfPreviewBtn'?fenixPdfFinal:fenixImageFinal;});
+    ensureTemperatureUI();
+  }
+  const prevButtonsBase=preview;
+  preview=function(){const r=prevButtonsBase();setTimeout(bindTempExports,70);return r;};
+
+  // ---------- Metas do consultor ----------
+  function isGabrielle(){return /gabrielle\s+duarte/i.test(state.profile?.full_name||'');}
+  async function loadGoalData(){
+    if(!state.session?.user?.id)return null;
+    const now=new Date(), month=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const b=fenixV25MonthBounds(month);
+    const {data}=await db.from(FENIX_V27_DAILY_TABLE).select('migrations,revenue_cents,mobile_migrations,bl_migrations').eq('profile_id',state.session.user.id).gte('result_date',b.start).lt('result_date',b.next);
+    const rows=data||[], revenue=rows.reduce((s,r)=>s+Number(r.revenue_cents||0),0), migrations=rows.reduce((s,r)=>s+Number(r.mobile_migrations??r.migrations??0),0);
+    let renewals=0;
+    const {data:sales}=await db.from(FENIX_V27_SALES_TABLE).select('mobile_items,status').eq('profile_id',state.session.user.id).gte('sale_date',b.start).lt('sale_date',b.next).eq('status','fechada');
+    (sales||[]).forEach(r=>(Array.isArray(r.mobile_items)?r.mobile_items:[]).forEach(x=>{if(String(x.type||'').toUpperCase()==='PN')renewals+=Number(x.qty||0)}));
+    return {revenue,migrations,renewals,month};
+  }
+  async function renderConsultantGoals(){
+    const host=$('fenixConsultantGoalPanel'); if(!host||supervisor())return;
+    const d=await loadGoalData(); if(!d)return;
+    const revPct=Math.min(100,d.revenue/150000), migPct=Math.min(100,d.migrations/60), fifty=Math.max(0,50-d.migrations), revLeft=Math.max(0,150000-d.revenue), sixty=Math.max(0,60-d.migrations);
+    const gab=isGabrielle(), unlocked15=gab&&d.revenue>=160000&&d.renewals>=100;
+    host.innerHTML=`<div class="panel-head"><div><p class="eyebrow">ACOMPANHAMENTO DA META</p><h3>🎯 Como está sua meta?</h3><p>Resultado executado do mês de referência.</p></div></div>
+      <div class="fenix-goal-grid"><div><span>Receita executada</span><strong>${moneyBR(d.revenue)}</strong><small>${revLeft?`Faltam ${moneyBR(revLeft)} para R$ 1.500,00`:'🏆 R$ 1.500 EXECUTADOS — META BATIDA! 💰 R$ 500,00'}</small></div>
+      <div><span>Migrações Móvel</span><strong>${d.migrations}</strong><small>${sixty?`Faltam ${sixty} para 60`:'🔥 60 MIGRAÇÕES EXECUTADAS — META BATIDA!'}</small></div>
+      <div><span>Faixa de R$ 10/migração</span><strong>${d.migrations>=50?'LIBERADA':'EM BUSCA'}</strong><small>${fifty?`Faltam ${fifty} migrações para 50`:'💰 R$ 10 por migração executada'}</small></div>
+      ${gab?`<div><span>Gabrielle — R$ 15/migração</span><strong>${unlocked15?'LIBERADA':'BLOQUEADA'}</strong><small>R$ 1.600 executados: ${d.revenue>=160000?'✓':'faltam '+moneyBR(Math.max(0,160000-d.revenue))} • 100 renovações: ${d.renewals>=100?'✓':'faltam '+Math.max(0,100-d.renewals)}</small></div>`:''}</div>
+      <div class="fenix-goal-progress"><div><span>Receita — R$ 1.500</span><b>${Math.round(revPct)}%</b></div><div class="bar"><i style="width:${revPct}%"></i></div><div><span>Migrações — 60</span><b>${Math.round(migPct)}%</b></div><div class="bar"><i style="width:${migPct}%"></i></div></div>`;
+  }
+
+  // ---------- Como está meu dia — somente Supervisora ----------
+  async function renderMyDay(){
+    const host=$('fenixMyDayPanel'); if(!host||!supervisor())return;
+    const today=isoToday();
+    const [salesRes,propRes]=await Promise.all([
+      db.from(FENIX_V27_SALES_TABLE).select('*').eq('sale_date',today).order('created_at',{ascending:false}),
+      db.from('proposals').select('id,client_name,consultant_id,new_plan_total_cents,status,created_at,internal_data').gte('created_at',today+'T00:00:00').lt('created_at',today+'T23:59:59.999')
+    ]);
+    const sales=(salesRes.data||[]), closed=sales.filter(x=>x.status==='fechada');
+    const rev=closed.reduce((s,r)=>s+Number(r.revenue_cents||0),0),mm=closed.reduce((s,r)=>s+Number(r.mobile_migrations??r.migrations??0),0),bl=closed.reduce((s,r)=>s+Number(r.bl_migrations||0),0),dev=closed.reduce((s,r)=>s+Number(r.device_count||0),0),devRev=closed.reduce((s,r)=>s+Number(r.device_revenue_cents||0),0);
+    const props=propRes.data||[], hot=props.filter(p=>p.internal_data?.proposal_temperature==='quente').length, cold=props.filter(p=>p.internal_data?.proposal_temperature==='fria').length, pending=props.filter(p=>p.status==='Enviada').length, approved=props.filter(p=>p.status==='Aprovada').length;
+    const decision=sales.length?sales.map(r=>`<tr><td>${esc(brDate(r.sale_date))}</td><td>${esc(profileName(r.profile_id))}</td><td>${esc(r.company_name||'-')}</td><td>${r.status==='fechada'?'<span class="fmd-ok">ENTRA NO RESULTADO</span>':'<span class="fmd-no">NÃO ENTRA</span>'}</td><td>${moneyBR(r.revenue_cents)}</td></tr>`).join(''):'<tr><td colspan="5">Nenhuma venda registrada hoje.</td></tr>';
+    host.innerHTML=`<div class="panel-head"><div><p class="eyebrow">VISÃO EXCLUSIVA DA SUPERVISORA</p><h3>📅 COMO ESTÁ MEU DIA — ${brDate(today)}</h3><p>Veja o que já entrou no resultado e o que ainda precisa de acompanhamento.</p></div><button id="fenixMyDayRefresh" class="btn btn-secondary" type="button">↻ Atualizar</button></div>
+      <div class="fenix-myday-kpis"><div><span>Receita executada</span><strong>${moneyBR(rev)}</strong></div><div><span>Migrações Móvel</span><strong>${mm}</strong></div><div><span>Migrações BL</span><strong>${bl}</strong></div><div><span>Aparelhos</span><strong>${dev} un.</strong><small>${moneyBR(devRev)}</small></div><div><span>Propostas quentes</span><strong>🔥 ${hot}</strong></div><div><span>Propostas frias</span><strong>❄️ ${cold}</strong></div><div><span>Enviadas aguardando</span><strong>${pending}</strong></div><div><span>Aprovadas hoje</span><strong>${approved}</strong></div></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Data</th><th>Consultor</th><th>Cliente</th><th>Decisão</th><th>Receita</th></tr></thead><tbody>${decision}</tbody></table></div>`;
+    $('fenixMyDayRefresh')?.addEventListener('click',renderMyDay);
+  }
+
+  function ensureDashboardPanels(){
+    const dash=$('dashboardView'); if(!dash)return;
+    if(!supervisor()&&!$('fenixConsultantGoalPanel')){const p=document.createElement('div');p.id='fenixConsultantGoalPanel';p.className='panel fenix-goal-panel';dash.querySelector('.dashboard-two-cols')?.insertAdjacentElement('beforebegin',p);}
+    if(supervisor()&&!$('fenixMyDayPanel')){const p=document.createElement('div');p.id='fenixMyDayPanel';p.className='panel fenix-myday-panel supervisor-only';dash.querySelector('.dashboard-two-cols')?.insertAdjacentElement('afterend',p);}
+  }
+  async function refreshDashExtras(){ensureDashboardPanels();if(supervisor())await renderMyDay();else await renderConsultantGoals();}
+  const dashBase=renderDashboard;
+  renderDashboard=function(){const r=dashBase();setTimeout(refreshDashExtras,80);return r;};
+  const showBase=showView;
+  showView=function(id){const r=showBase(id);if(id==='dashboardView')setTimeout(refreshDashExtras,100);return r;};
+  window.addEventListener('load',()=>setTimeout(refreshDashExtras,7200));
+})();
