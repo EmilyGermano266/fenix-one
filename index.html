@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fênix One — Equipe Fênix</title>
   <meta name="description" content="Sistema comercial inteligente da Equipe Fênix." />
-  <link rel="stylesheet" href="style.css?v=20260902-v23" />
+  <link rel="stylesheet" href="style.css?v=20260910-v25" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
@@ -71,6 +71,8 @@
         <button class="nav-item" data-view="faqView">💬 <span>Dúvidas Frequentes</span></button>
         <button class="nav-item" data-view="devicesProposalView">📱 <span>Proposta de Aparelhos</span></button>
         <button id="navResults" class="nav-item" data-view="resultsView">📊 <span>Resultados</span></button>
+        <button id="navSalesManagement" class="nav-item" data-view="salesManagementView">💼 <span>Gestão de Vendas</span></button>
+        <button id="navDailyResults" class="nav-item supervisor-only" data-view="dailyResultsView">🗓️ <span>Resultado Diário</span></button>
         <button id="navNotifications" class="nav-item supervisor-only" data-view="notificationsView">🔔 <span>Notificações</span><b id="notificationBadge" class="badge hidden">0</b></button>
         <button class="nav-item supervisor-only" data-view="adminView">⚙️ <span>Administração</span></button>
       </nav>
@@ -481,6 +483,85 @@
         </div>
       </section>
 
+
+      <section id="salesManagementView" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">GESTÃO COMERCIAL</p>
+            <h3>Gestão de Vendas</h3>
+            <p>Centralize clientes, fechamentos, receita, migrações e portabilidade dentro do Fênix One.</p>
+          </div>
+          <div class="section-actions">
+            <button id="fvmRefresh" class="btn btn-secondary" type="button">↻ Atualizar</button>
+            <button id="fvmExport" class="btn btn-secondary" type="button">📥 Exportar Excel</button>
+          </div>
+        </div>
+        <div class="panel fvm-filters">
+          <div class="form-grid cols-4">
+            <label>Mês de referência<input id="fvmMonth" type="month"></label>
+            <label>Consultor<select id="fvmConsultant"><option value="">Todos os consultores</option></select></label>
+            <label>Status<select id="fvmStatus"><option value="">Todos</option><option value="fechada">Fechada</option><option value="pendente">Pendente</option><option value="cancelada">Cancelada</option></select></label>
+            <div class="fvm-filter-action"><button id="fvmClear" class="btn btn-ghost" type="button">Limpar filtros</button></div>
+          </div>
+        </div>
+        <div class="fvm-kpis">
+          <div class="fvm-kpi"><span>Vendas</span><b id="fvmSalesCount">0</b></div>
+          <div class="fvm-kpi"><span>Receita</span><b id="fvmRevenue">R$ 0,00</b></div>
+          <div class="fvm-kpi"><span>Migrações</span><b id="fvmMigrations">0</b></div>
+          <div class="fvm-kpi"><span>Portabilidades</span><b id="fvmPortabilities">0</b></div>
+        </div>
+        <div class="panel fvm-entry-panel">
+          <div class="panel-head"><div><p class="eyebrow">NOVO FECHAMENTO</p><h3>Registrar venda</h3><p>O consultor registra a própria venda; a Supervisora acompanha toda a equipe.</p></div></div>
+          <form id="fvmSaleForm" class="form-grid cols-4">
+            <label>Data<input id="fvmSaleDate" type="date" required></label>
+            <label>CNPJ<input id="fvmCnpj" inputmode="numeric" placeholder="00.000.000/0000-00" required></label>
+            <label>Razão Social<input id="fvmCompany" placeholder="Nome da empresa" required></label>
+            <label>Produto/Solução<input id="fvmProduct" placeholder="Ex.: Móvel, Fibra, VVN" required></label>
+            <label>Migrações<input id="fvmSaleMigrations" type="number" min="0" step="1" value="0" required></label>
+            <label>Receita (R$)<input id="fvmSaleRevenue" inputmode="decimal" placeholder="0,00" required></label>
+            <label>Portabilidade
+              <select id="fvmPortability"><option value="false">NÃO</option><option value="true">SIM</option></select>
+            </label>
+            <label>Status<select id="fvmSaleStatus"><option value="fechada">Fechada</option><option value="pendente">Pendente</option><option value="cancelada">Cancelada</option></select></label>
+            <div class="fvm-save-action"><button id="fvmSaveSale" class="btn btn-primary" type="submit">Salvar venda</button></div>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><p class="eyebrow">MOVIMENTAÇÕES</p><h3>Vendas registradas</h3></div></div>
+          <div id="fvmTable" class="table-wrap"><div class="empty-state">Carregando...</div></div>
+        </div>
+      </section>
+
+      <section id="dailyResultsView" class="view supervisor-only">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">GESTÃO DE RESULTADOS</p>
+            <h3>Resultado Diário</h3>
+            <p>Preencha a entrega diária de cada consultor. O Fênix soma automaticamente cada semana de segunda a sexta e o total do mês.</p>
+          </div>
+          <button id="fdrRefresh" class="btn btn-secondary" type="button">↻ Atualizar</button>
+        </div>
+
+        <div class="panel fdr-filter-panel">
+          <div class="form-grid cols-3">
+            <label>Mês de referência
+              <input id="fdrMonth" type="month">
+            </label>
+            <label>Consultor
+              <select id="fdrConsultant"><option value="">Selecione o consultor</option></select>
+            </label>
+            <div class="fdr-filter-action">
+              <button id="fdrSaveAll" class="btn btn-primary" type="button">Salvar resultados do mês</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="fdrSummary" class="fdr-month-summary hidden"></div>
+        <div id="fdrWeeks" class="fdr-weeks">
+          <div class="empty-state">Selecione o mês e um consultor para preencher os resultados diários.</div>
+        </div>
+      </section>
+
       <section id="notificationsView" class="view supervisor-only">
         <div class="section-heading">
           <div><p class="eyebrow">SUPERVISÃO</p><h3>Notificações</h3><p>Novas propostas enviadas pela equipe.</p></div>
@@ -648,6 +729,6 @@
       <div id="materialContentActions" class="material-content-actions"></div>
     </div>
   </div>
-  <script src="script.js?v=20260902-v23"></script>
+  <script src="script.js?v=20260910-v25"></script>
 </body>
 </html>

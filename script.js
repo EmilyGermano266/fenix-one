@@ -7067,3 +7067,355 @@ window.addEventListener("load",()=>{
   setTimeout(()=>{ try{renderMobile()}catch(e){console.error(e)} },1200);
   setTimeout(()=>{ try{renderMobile()}catch(e){console.error(e)} },4500);
 });
+
+// ============================================================
+// FÊNIX ONE v24 — RODADA CONSOLIDADA 02/09/2026
+// Preserva as funções anteriores e aplica somente os ajustes solicitados.
+// ============================================================
+
+// 1) Serviços: Plano Atual / ambos / apenas Plano Novo.
+renderServices = function(){
+  fenixV22EnsureSaldo();
+  const host=$("servicesGrid"); if(!host)return;
+  host.innerHTML=(state.services||[]).map(s=>{
+    const x=state.serviceSelections[s.id];
+    let placement=x?.placement || (x?.currentAlso===false?"new":"both");
+    if(!["current","both","new"].includes(placement)) placement="both";
+    const label=placement==="new"?"SERVIÇO CONTRATADO":"SERVIÇO JÁ ATIVADO";
+    const sub=placement==="current"?"Reflete somente no Plano Atual":placement==="both"?"Reflete no Plano Atual e no Plano Novo":"Reflete apenas no Plano Novo";
+    return `<div class="service-card ${s.fenixActiveInternet?"fenix-active-internet":""}" data-service="${s.id}">
+      <label class="service-head"><input type="checkbox" class="service-toggle" ${x?.enabled?"checked":""}><span>${esc(s.name)}</span></label>
+      <div class="service-fields ${x?.enabled?"":"hidden"}">
+        <label>Quantidade<input class="service-qty" type="number" min="1" value="${x?.quantity||1}"></label>
+        <label>Valor unitário<input class="service-value money-input" inputmode="decimal" value="${x?.unitValueCents?money(x.unitValueCents):""}" placeholder="R$ 0,00"></label>
+        <label>Onde ficará?<select class="service-placement">
+          <option value="current" ${placement==="current"?"selected":""}>Somente Plano Atual</option>
+          <option value="both" ${placement==="both"?"selected":""}>Plano Atual e Plano Novo</option>
+          <option value="new" ${placement==="new"?"selected":""}>Apenas Plano Novo</option>
+        </select></label>
+        <div class="fenix-v22-service-class"><strong>${label}</strong><span>${sub}</span></div>
+        <button type="button" class="item-remove fenix-service-remove-v19 fenix-v22-service-remove">Remover serviço</button>
+      </div></div>`;
+  }).join("");
+  $$("[data-service]").forEach(card=>{
+    const id=Number(card.dataset.service),toggle=card.querySelector(".service-toggle"),fields=card.querySelector(".service-fields"),qty=card.querySelector(".service-qty"),val=card.querySelector(".service-value"),placement=card.querySelector(".service-placement");
+    const sync=()=>{
+      if(!toggle.checked) delete state.serviceSelections[id];
+      else state.serviceSelections[id]={enabled:true,quantity:Math.max(1,Number(qty.value)||1),unitValueCents:cents(val.value),placement:placement.value,currentAlso:placement.value!=="new",keepNew:placement.value!=="current"};
+      fields.classList.toggle("hidden",!toggle.checked);
+      const cls=card.querySelector(".fenix-v22-service-class");
+      if(cls){const p=placement.value;cls.innerHTML=p==="new"?'<strong>SERVIÇO CONTRATADO</strong><span>Reflete apenas no Plano Novo</span>':p==="current"?'<strong>SERVIÇO JÁ ATIVADO</strong><span>Reflete somente no Plano Atual</span>':'<strong>SERVIÇO JÁ ATIVADO</strong><span>Reflete no Plano Atual e no Plano Novo</span>';}
+      updateCalc();
+    };
+    toggle.onchange=sync;qty.oninput=sync;placement.onchange=sync;val.oninput=sync;val.onblur=()=>{if(val.value)formatMoneyInput(val);sync()};
+    card.querySelector(".fenix-v22-service-remove").onclick=()=>{toggle.checked=false;delete state.serviceSelections[id];renderServices();updateCalc()};
+  });
+};
+serviceTotals=function(){
+  let current=0,newTotal=0;const selected=[];
+  for(const s of (state.services||[])){const x=state.serviceSelections[s.id];if(!x?.enabled)continue;const quantity=Math.max(1,Number(x.quantity)||1),unitValueCents=Number(x.unitValueCents)||0,totalCents=quantity*unitValueCents;let placement=x.placement||(x.currentAlso===false?"new":"both");if(!["current","both","new"].includes(placement))placement="both";const currentAlso=placement!=="new",keepNew=placement!=="current";if(currentAlso)current+=totalCents;if(keepNew)newTotal+=totalCents;selected.push({serviceId:s.id,name:s.name,quantity,unitValueCents,totalCents,currentAlso,keepNew,placement,classification:placement==="new"?"SERVIÇO CONTRATADO":"SERVIÇO JÁ ATIVADO",fenixActiveInternet:!!s.fenixActiveInternet,fenixGb:Number(s.fenixGb)||0,fenixProductId:s.fenixProductId||null});}
+  return {current,newTotal,selected};
+};
+fenixV14ActiveInternetTotals=function(){const svc=serviceTotals();let currentGb=0,newGb=0;for(const i of svc.selected){if(!i.fenixActiveInternet)continue;const gb=(Number(i.fenixGb)||0)*(Number(i.quantity)||1);if(i.currentAlso)currentGb+=gb;if(i.keepNew)newGb+=gb;}return{currentGb,newGb,svc}};
+v7CurrentServices=()=> (calc().svc?.selected||[]).filter(s=>s.currentAlso).map(s=>({...s,destination:s.placement,classification:"SERVIÇO JÁ ATIVADO"}));
+v7NewServices=()=> (calc().svc?.selected||[]).filter(s=>s.keepNew).map(s=>({...s,classification:s.placement==="new"?"SERVIÇO CONTRATADO":"SERVIÇO JÁ ATIVADO"}));
+
+// 2) Organização interna da proposta sem trocar o visual principal.
+const fenixV24ProposalBase=proposalHTML;
+function fenixV24Rows(items,product=false){return (items||[]).map(i=>`<div class="plan-detail-row"><strong>${product?`${esc(v4CategoryLabel(i.category))} — ${esc(i.variant||i.name||"")}`:esc(i.name)}</strong><span>${Number(i.quantity)||1} un. • ${money(Number(i.totalCents)||0)}${product?"/mês":""}</span></div>`).join("")}
+proposalHTML=function(snapshot,fenixNumber=""){
+  if(snapshot?.reviewedHtml)return fenixV24ProposalBase(snapshot,fenixNumber);
+  const markup=fenixV24ProposalBase(snapshot,fenixNumber);if(typeof document==="undefined")return markup;
+  const wrap=document.createElement("div");wrap.innerHTML=markup;
+  const plans=wrap.querySelectorAll(".proposal-plan");if(plans.length<2)return markup;
+  const current=plans[0],next=plans[1];
+  current.querySelectorAll(".plan-details").forEach(x=>x.remove());
+  next.querySelectorAll(".plan-details").forEach(x=>x.remove());
+  const add=(plan,title,rows)=>{if(!rows)return;const d=document.createElement("div");d.className="plan-details fenix-v24-section";d.innerHTML=`<span class="plan-detail-title">${title}</span>${rows}`;plan.insertBefore(d,plan.querySelector(".plan-price"));};
+  add(current,"SERVIÇOS JÁ ATIVOS",fenixV24Rows(snapshot.currentServices||[]));
+  add(current,"PRODUTOS JÁ ATIVOS",fenixV24Rows(snapshot.currentProducts||[],true));
+  const ns=snapshot.newServices||snapshot.services||[];
+  add(next,"CHIP VIRTUAL",(snapshot.esimDetails||[]).map(e=>`<div class="plan-detail-row"><strong>E-SIM</strong><span>${e.quantity} un. • ${e.totalGb} GB</span></div>`).join(""));
+  add(next,"SERVIÇOS JÁ ATIVOS",fenixV24Rows(ns.filter(s=>s.placement!=="new"&&s.currentAlso!==false)));
+  add(next,"SERVIÇOS CONTRATADOS",fenixV24Rows(ns.filter(s=>s.placement==="new"||s.currentAlso===false)));
+  add(next,"SOLUÇÕES CONTRATADAS",fenixV24Rows(snapshot.newProducts||snapshot.products||[],true));
+  return wrap.innerHTML;
+};
+
+// 3) PDF/imagem: salva uma única vez no histórico, gera Fênix e usa nome da empresa.
+function fenixV24SafeName(v){return String(v||"Cliente").trim().replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").slice(0,100)}
+async function fenixV24EnsureSaved(){if(state.previewSavedProposal?.id)return state.previewSavedProposal;return await fenixSendPreviewFinal()}
+fenixPdfFinal=async function(){const b=$("pdfPreviewBtn"),old=b?.textContent||"📄 Salvar em PDF";try{if(b){b.disabled=true;b.textContent="Salvando proposta..."}const s=await fenixV24EnsureSaved();if(!s)return;const name=fenixV24SafeName(s.client_name||state.previewPayload?.client_name||state.previewPayload?.client_snapshot?.clientName);const title=document.title;document.title=`Proposta comercial - ${name}`;const restore=()=>{document.title=title};window.addEventListener("afterprint",restore,{once:true});setTimeout(restore,30000);if(b)b.textContent="Gerando PDF...";saveAsPDF("proposalDocument")}catch(e){console.error(e)}finally{if(b){b.disabled=false;b.textContent=old}}};
+fenixImageFinal=async function(){const b=$("imagePreviewBtn"),old=b?.textContent||"📸 Salvar imagem";try{if(b){b.disabled=true;b.textContent="Salvando proposta..."}const s=await fenixV24EnsureSaved();if(!s)return;const name=fenixV24SafeName(s.client_name||state.previewPayload?.client_name||state.previewPayload?.client_snapshot?.clientName);if(b)b.textContent="Gerando imagem...";await v10SaveProposalImage("proposalDocument",`Proposta comercial - ${name}.png`)}catch(e){console.error(e)}finally{if(b){b.disabled=false;b.textContent=old}}};
+
+// 4) Resultados diários por cliente + filtros + Excel.
+let fenixV24DailyRows=[];
+function fenixV24ProfileName(id){const p=[...(state.profiles||[]),state.profile].filter(Boolean).find(x=>String(x.id)===String(id));return p?.full_name||p?.name||p?.email||"Consultor"}
+function fenixV24ResultsUi(){
+  const host=$("frForm");if(!host)return;const month=$("frMonth")?.value||new Date().toISOString().slice(0,7);const people=(state.profiles||[]).filter(p=>p.active!==false&&String(p.role||"").toLowerCase()!=="supervisora");
+  host.innerHTML=`<div class="frbox fenix-v24-result-form"><div class="fenix-v24-result-title"><strong>Resultado diário</strong><span>Registre cada cliente fechado no dia.</span></div>
+    ${supervisor()?`<label>Consultor<select id="frConsult">${people.map(p=>`<option value="${p.id}">${esc(p.full_name||p.name||p.email)}</option>`).join("")}</select></label>`:""}
+    <label>Data<input id="frResultDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label>
+    <label>CNPJ<input id="frCnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></label>
+    <label>Razão Social<input id="frCompany" placeholder="Razão social do cliente"></label>
+    <label>Migrações<input id="frMigrations" type="number" min="0" step="1" value="0"></label>
+    <label>Receita (R$)<input id="frRevenue" type="number" min="0" step="0.01" value="0"></label>
+    <div class="fenix-portability"><span>Teve portabilidade?</span><button id="frPortability" type="button" class="fenix-toggle-btn" data-value="false">NÃO</button></div>
+    <input id="frPeriod" type="hidden" value="${month}"><button class="btn btn-primary" id="frSave" type="button">Salvar resultado do dia</button></div>`;
+  const pt=$("frPortability");if(pt)pt.onclick=()=>{const yes=pt.dataset.value!=="true";pt.dataset.value=String(yes);pt.textContent=yes?"SIM":"NÃO";pt.classList.toggle("active",yes)};
+  $("frSave").onclick=fenixV24SaveDailyResult;
+}
+async function fenixV24SaveDailyResult(){
+  const company=$("frCompany")?.value.trim(),cnpj=$("frCnpj")?.value.trim(),date=$("frResultDate")?.value;if(!company||!cnpj||!date)return toast("Informe data, CNPJ e Razão Social.","error");
+  const row={profile_id:supervisor()?$("frConsult")?.value:state.session.user.id,result_date:date,cnpj,company_name:company,migrations:Number($("frMigrations")?.value||0),revenue_cents:Math.round(Number($("frRevenue")?.value||0)*100),has_portability:$("frPortability")?.dataset.value==="true",created_by:state.session.user.id};
+  const {error}=await db.from("consultant_daily_results").insert(row);if(error)return toast(error.message||"Não foi possível salvar. Execute o SQL v24 no Supabase.","error");toast("Resultado diário salvo!","success");fenixV24ResultsUi();await fenixLoadResults();
+}
+function fenixV24EnsureSupervisorFilters(){if(!supervisor())return;const panel=$("resultsView")?.querySelector(".panel .form-grid");if(!panel||$("frConsultFilter"))return;const people=(state.profiles||[]).filter(p=>p.active!==false&&String(p.role||"").toLowerCase()!=="supervisora");panel.insertAdjacentHTML("beforeend",`<label>Consultor<select id="frConsultFilter"><option value="">Todos os consultores</option>${people.map(p=>`<option value="${p.id}">${esc(p.full_name||p.name||p.email)}</option>`).join("")}</select></label><div class="fenix-v24-export"><button id="frExportExcel" class="btn btn-secondary" type="button">Exportar Excel</button></div>`);$("frConsultFilter").onchange=fenixLoadResults;$("frExportExcel").onclick=fenixV24ExportExcel}
+function fenixV24ExportExcel(){if(!fenixV24DailyRows.length)return toast("Não há resultados para exportar.","error");const data=fenixV24DailyRows.map(r=>({Data:brDate(r.result_date),Consultor:fenixV24ProfileName(r.profile_id),CNPJ:r.cnpj,"Razão Social":r.company_name,Migrações:Number(r.migrations||0),Receita:Number(r.revenue_cents||0)/100,Portabilidade:r.has_portability?"Sim":"Não"}));const ws=XLSX.utils.json_to_sheet(data);const totalMig=data.reduce((s,r)=>s+r.Migrações,0),totalRev=data.reduce((s,r)=>s+r.Receita,0);XLSX.utils.sheet_add_aoa(ws,[["TOTAL","","","",totalMig,totalRev,""]],{origin:-1});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Resultados");const filter=$("frConsultFilter")?.value;const who=filter?fenixV24ProfileName(filter):"Equipe Fênix";const month=$("frMonth")?.value||"periodo";XLSX.writeFile(wb,`Resultados - ${fenixV24SafeName(who)} - ${month}.xlsx`)}
+fenixLoadResults=async function(){
+  const month=$("frMonth")?.value;if(!month)return;fenixV24EnsureSupervisorFilters();let q=db.from("consultant_daily_results").select("*").gte("result_date",`${month}-01`).lt("result_date",(()=>{const [y,m]=month.split("-").map(Number);const d=new Date(y,m,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`})()).order("result_date",{ascending:false}).order("created_at",{ascending:false});if(!supervisor())q=q.eq("profile_id",state.session.user.id);const f=$("frConsultFilter")?.value;if(supervisor()&&f)q=q.eq("profile_id",f);const {data,error}=await q;if(error){if($("frTable"))$("frTable").innerHTML=`Execute o arquivo <b>SUPABASE_V24_RESULTADOS_NOTIFICACOES.sql</b> no Supabase.<br>${esc(error.message||"")}`;return}fenixV24DailyRows=data||[];const rows=fenixV24DailyRows;$("frMig").textContent=rows.reduce((s,r)=>s+Number(r.migrations||0),0);$("frRev").textContent=money(rows.reduce((s,r)=>s+Number(r.revenue_cents||0),0));$("frCount").textContent=new Set(rows.map(r=>String(r.profile_id))).size;$("frTable").innerHTML=`<table class="frtable"><thead><tr><th>Data</th><th>Consultor</th><th>CNPJ</th><th>Razão Social</th><th>Migrações</th><th>Receita</th><th>Portabilidade</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr><td>${brDate(r.result_date)}</td><td>${esc(fenixV24ProfileName(r.profile_id))}</td><td>${esc(r.cnpj)}</td><td>${esc(r.company_name)}</td><td>${Number(r.migrations||0)}</td><td>${money(Number(r.revenue_cents||0))}</td><td><span class="fenix-port-pill ${r.has_portability?"yes":"no"}">${r.has_portability?"SIM":"NÃO"}</span></td></tr>`).join(""):'<tr><td colspan="7">Sem resultados neste período.</td></tr>'}</tbody></table>`;if(supervisor()){fenixV14EnsureRoutinePanel();await fenixV14LoadRoutineResponses()}
+};
+
+// 5) Ranking da Equipe Fênix por RECEITA, do melhor para o menor.
+let fenixV24RankingPopupKey="";
+async function fenixV24RevenueRanking(){const el=$("rankingList");if(!el||!state.session?.user)return;const period=$("rankingPeriod")?.value||"month",now=new Date();let start="1900-01-01",end="2999-12-31";if(period==="month")start=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`;if(period==="day"||period==="hour")start=now.toISOString().slice(0,10);if(period!=="all"){const d=new Date(now.getFullYear(),now.getMonth()+1,1);end=d.toISOString().slice(0,10)}const {data,error}=await db.from("consultant_daily_results").select("profile_id,revenue_cents,result_date").gte("result_date",start).lt("result_date",end);if(error)return;const people=(state.profiles||[]).filter(p=>p.active!==false&&String(p.role||"").toLowerCase()!=="supervisora");const map=new Map(people.map(p=>[String(p.id),{id:p.id,name:p.full_name||p.name||p.email,revenue:0}]));(data||[]).forEach(r=>{const x=map.get(String(r.profile_id));if(x)x.revenue+=Number(r.revenue_cents||0)});const ranking=[...map.values()].sort((a,b)=>b.revenue-a.revenue||a.name.localeCompare(b.name,"pt-BR"));el.innerHTML=ranking.length?ranking.map((r,i)=>`<div class="ranking-row fenix-revenue-ranking"><div class="ranking-position">${i+1}º</div><div><strong>${esc(r.name)}</strong><small>Receita acumulada no período</small></div><div class="ranking-score"><strong>${money(r.revenue)}</strong><small>receita</small></div></div>`).join(""):'<div class="empty-state">Sem resultados no período.</div>';fenixV24RankingMotivation(ranking,period)}
+function fenixV24RankingMotivation(ranking,period){if(supervisor()||!ranking.length)return;const idx=ranking.findIndex(r=>String(r.id)===String(state.session.user.id));if(idx<0)return;const key=`${new Date().toISOString().slice(0,10)}_${period}_${idx}`;if(sessionStorage.getItem("fenix_rank_"+key)||fenixV24RankingPopupKey===key)return;fenixV24RankingPopupKey=key;sessionStorage.setItem("fenix_rank_"+key,"1");let title="🔥 Continue avançando!",msg="Cada resultado conta. Continue focado e busque a próxima posição.";if(idx===0){title="🏆 Parabéns pela sua entrega! 🔥";msg="Você está em 1º lugar no ranking de Receita da Equipe Fênix. Continue mantendo esse ritmo!"}else if(idx===ranking.length-1&&ranking.length>1){title="⚠️ Você precisa reagir, vamos lá!";msg="Ainda dá tempo de mudar esse resultado. Foque nas próximas oportunidades e busque sua evolução."}else if(idx===1){msg="Você está muito perto do topo! Continue firme e vamos buscar o 1º lugar. 🚀"}else{msg="Boa entrega! Continue focado, ainda dá para subir no ranking. 💪"}const box=document.createElement("div");box.className=`fenix-rank-popup ${idx===0?"winner":idx===ranking.length-1?"alert":""}`;box.innerHTML=`<button type="button" aria-label="Fechar">×</button><h3>${title}</h3><p>${msg}</p>`;box.querySelector("button").onclick=()=>box.remove();document.body.appendChild(box);setTimeout(()=>box.remove(),9000)}
+const fenixV24DashboardBase=renderDashboard;renderDashboard=function(){const r=fenixV24DashboardBase();const h=$("rankingList")?.closest(".panel")?.querySelector("h3");if(h)h.textContent="Ranking da Equipe Fênix — Receita";setTimeout(fenixV24RevenueRanking,0);return r};
+
+// 6) Notificações de atraso da rotina para a Supervisora (15 min após o horário).
+async function fenixV24CheckLateRoutine(){if(!supervisor()||!state.session?.user)return;const now=new Date(),today=now.toISOString().slice(0,10),minutes=now.getHours()*60+now.getMinutes();const people=(state.profiles||[]).filter(p=>p.active!==false&&String(p.role||"").toLowerCase()!=="supervisora");const due=FENIX_ALERTS.filter(a=>minutes>=a.h*60+a.m+15);if(!due.length||!people.length)return;const {data}=await db.from("routine_alert_responses").select("profile_id,alert_id").eq("response_date",today);const answered=new Set((data||[]).map(r=>`${r.profile_id}_${r.alert_id}`));const {data:notifs}=await db.from("notifications").select("title,message").gte("created_at",`${today}T00:00:00`);const existing=new Set((notifs||[]).map(n=>`${n.title}|${n.message}`));for(const a of due)for(const p of people){if(answered.has(`${p.id}_${a.id}`))continue;const title="Confirmação de rotina atrasada";const message=`${p.full_name||p.name||p.email||"Consultor"} — tarefa das ${String(a.h).padStart(2,"0")}:${String(a.m).padStart(2,"0")}`;if(existing.has(`${title}|${message}`))continue;await db.from("notifications").insert({title,message,read:false});existing.add(`${title}|${message}`)}}
+
+function fenixV24Init(){try{renderServices();updateCalc()}catch(e){console.error(e)}fenixV24ResultsUi();fenixV24EnsureSupervisorFilters();if($("frMonth")&&!$("frMonth").value)$("frMonth").value=new Date().toISOString().slice(0,7);if($("frMonth"))$("frMonth").onchange=()=>{fenixV24ResultsUi();fenixLoadResults()};if($("frRefresh"))$("frRefresh").onclick=fenixLoadResults;if($("rankingPeriod"))$("rankingPeriod").onchange=()=>{renderDashboard()};if(supervisor()){fenixV24CheckLateRoutine();setInterval(fenixV24CheckLateRoutine,5*60*1000)}}
+window.addEventListener("load",()=>{setTimeout(fenixV24Init,5200);setTimeout(()=>{fenixBindPreviewFinal();fenixV24RevenueRanking()},6000)});
+document.addEventListener("click",e=>{if(e.target?.closest?.('[data-view="resultsView"]'))setTimeout(()=>{fenixV24ResultsUi();fenixV24EnsureSupervisorFilters();fenixLoadResults()},120);if(e.target?.closest?.('[data-view="dashboardView"]'))setTimeout(fenixV24RevenueRanking,150)});
+
+// ============================================================
+// FÊNIX ONE v25 — RESULTADO DIÁRIO DA SUPERVISÃO
+// Preenchimento diário por consultor + totais semanais (seg-sex)
+// ============================================================
+const FENIX_V25_DAILY_TABLE = "consultant_supervisor_daily_totals";
+let fenixV25DailySavedRows = [];
+
+function fenixV25MonthBounds(month){
+  const [year,mon]=String(month||"").split("-").map(Number);
+  if(!year||!mon) return null;
+  const next = mon===12 ? `${year+1}-01-01` : `${year}-${String(mon+1).padStart(2,"0")}-01`;
+  return {year,mon,start:`${year}-${String(mon).padStart(2,"0")}-01`,next};
+}
+function fenixV25IsoDate(year,mon,day){return `${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`}
+function fenixV25ShortDate(iso){const [y,m,d]=iso.split("-");return `${d}/${m}`}
+function fenixV25WeekdayName(date){return ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"][date.getDay()]}
+function fenixV25MonthWeeks(month){
+  const b=fenixV25MonthBounds(month); if(!b)return [];
+  const last=new Date(b.year,b.mon,0,12).getDate(), groups=new Map();
+  for(let day=1;day<=last;day++){
+    const date=new Date(b.year,b.mon-1,day,12), dow=date.getDay();
+    if(dow===0||dow===6) continue;
+    const monday=new Date(date); monday.setDate(date.getDate()-((dow+6)%7));
+    const key=`${monday.getFullYear()}-${String(monday.getMonth()+1).padStart(2,"0")}-${String(monday.getDate()).padStart(2,"0")}`;
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push({iso:fenixV25IsoDate(b.year,b.mon,day),day,date,weekday:fenixV25WeekdayName(date)});
+  }
+  return [...groups.values()];
+}
+function fenixV25ActiveConsultants(){
+  return (state.profiles||[]).filter(p=>p.active!==false && String(p.role||"").toLowerCase()!=="supervisora");
+}
+function fenixV25PopulateConsultants(){
+  const sel=$("fdrConsultant"); if(!sel)return;
+  const current=sel.value;
+  const people=fenixV25ActiveConsultants();
+  sel.innerHTML=`<option value="">Selecione o consultor</option>${people.map(p=>`<option value="${p.id}">${esc(p.full_name||p.name||p.email||"Consultor")}</option>`).join("")}`;
+  if(people.some(p=>String(p.id)===String(current)))sel.value=current;
+}
+function fenixV25SavedMap(){return new Map((fenixV25DailySavedRows||[]).map(r=>[r.result_date,r]))}
+function fenixV25RevenueInputValue(c){return Number(c)>0 ? (Number(c)/100).toFixed(2).replace(".",",") : ""}
+
+function fenixV25RenderDailyGrid(){
+  const container=$("fdrWeeks"), summary=$("fdrSummary"); if(!container)return;
+  const month=$("fdrMonth")?.value, consultant=$("fdrConsultant")?.value;
+  if(!month||!consultant){
+    container.innerHTML='<div class="empty-state">Selecione o mês e um consultor para preencher os resultados diários.</div>';
+    summary?.classList.add("hidden"); return;
+  }
+  const weeks=fenixV25MonthWeeks(month), saved=fenixV25SavedMap();
+  container.innerHTML=weeks.map((days,wi)=>{
+    const first=days[0].iso,last=days[days.length-1].iso;
+    const rows=days.map(d=>{
+      const r=saved.get(d.iso);
+      return `<div class="fdr-day-row" data-date="${d.iso}" data-week="${wi}">
+        <div class="fdr-day-label"><strong>${d.weekday}</strong><span>${fenixV25ShortDate(d.iso)}</span></div>
+        <label>Migrações<input class="fdr-migrations" type="number" min="0" step="1" inputmode="numeric" value="${r?Number(r.migrations||0):""}" placeholder="0"></label>
+        <label>Receita (R$)<input class="fdr-revenue" type="text" inputmode="decimal" value="${r?fenixV25RevenueInputValue(r.revenue_cents):""}" placeholder="0,00"></label>
+      </div>`;
+    }).join("");
+    return `<section class="panel fdr-week-card" data-week-card="${wi}">
+      <div class="fdr-week-head"><div><p class="eyebrow">SEMANA ${wi+1}</p><h3>${fenixV25ShortDate(first)} a ${fenixV25ShortDate(last)}</h3></div><div class="fdr-week-total"><span>Total da semana</span><strong class="fdr-week-mig">0 migrações</strong><b class="fdr-week-rev">R$ 0,00</b></div></div>
+      <div class="fdr-days">${rows}</div>
+    </section>`;
+  }).join("");
+  summary?.classList.remove("hidden");
+  container.querySelectorAll(".fdr-migrations,.fdr-revenue").forEach(inp=>inp.addEventListener("input",fenixV25RecalculateTotals));
+  container.querySelectorAll(".fdr-revenue").forEach(inp=>inp.addEventListener("blur",()=>{const c=cents(inp.value);inp.value=c?fenixV25RevenueInputValue(c):"";fenixV25RecalculateTotals()}));
+  fenixV25RecalculateTotals();
+}
+function fenixV25RecalculateTotals(){
+  let monthMig=0,monthRev=0;
+  document.querySelectorAll("#fdrWeeks [data-week-card]").forEach(card=>{
+    let wm=0,wr=0;
+    card.querySelectorAll(".fdr-day-row").forEach(row=>{wm+=Math.max(0,Number(row.querySelector(".fdr-migrations")?.value)||0);wr+=Math.max(0,cents(row.querySelector(".fdr-revenue")?.value||""))});
+    monthMig+=wm;monthRev+=wr;
+    const me=card.querySelector(".fdr-week-mig"),re=card.querySelector(".fdr-week-rev");
+    if(me)me.textContent=`${wm} ${wm===1?"migração":"migrações"}`; if(re)re.textContent=money(wr);
+  });
+  const s=$("fdrSummary");if(s){const consultant=fenixV24ProfileName($("fdrConsultant")?.value);s.innerHTML=`<div><span>Consultor</span><strong>${esc(consultant)}</strong></div><div><span>Total do mês — Migrações</span><strong>${monthMig}</strong></div><div><span>Total do mês — Receita</span><strong>${money(monthRev)}</strong></div>`}
+}
+async function fenixV25LoadDailyResults(){
+  if(!supervisor())return;
+  fenixV25PopulateConsultants();
+  const month=$("fdrMonth")?.value,profileId=$("fdrConsultant")?.value;
+  if(!month||!profileId){fenixV25DailySavedRows=[];fenixV25RenderDailyGrid();return}
+  const b=fenixV25MonthBounds(month); if(!b)return;
+  const {data,error}=await db.from(FENIX_V25_DAILY_TABLE).select("*").eq("profile_id",profileId).gte("result_date",b.start).lt("result_date",b.next).order("result_date");
+  if(error){console.error("Resultado Diário v25:",error);fenixV25DailySavedRows=[];$("fdrWeeks").innerHTML=`<div class="empty-state">Execute o arquivo <b>SUPABASE_V25_RESULTADO_DIARIO_SEMANAL.sql</b> no Supabase.<br>${esc(error.message||"")}</div>`;return}
+  fenixV25DailySavedRows=data||[];fenixV25RenderDailyGrid();
+}
+async function fenixV25SaveDailyResults(){
+  if(!supervisor())return toast("Apenas a Supervisora pode preencher este controle.","error");
+  const month=$("fdrMonth")?.value,profileId=$("fdrConsultant")?.value;
+  if(!month)return toast("Selecione o mês de referência.","error");
+  if(!profileId)return toast("Selecione o consultor.","error");
+  const btn=$("fdrSaveAll"),old=btn?.textContent||"Salvar resultados do mês";if(btn){btn.disabled=true;btn.textContent="Salvando..."}
+  try{
+    const currentMap=fenixV25SavedMap(), upserts=[], deleteDates=[];
+    document.querySelectorAll("#fdrWeeks .fdr-day-row").forEach(row=>{
+      const migrations=Math.max(0,Math.trunc(Number(row.querySelector(".fdr-migrations")?.value)||0));
+      const revenue=Math.max(0,cents(row.querySelector(".fdr-revenue")?.value||""));
+      const date=row.dataset.date;
+      if(migrations>0||revenue>0)upserts.push({profile_id:profileId,result_date:date,migrations,revenue_cents:revenue,updated_by:state.session.user.id,updated_at:new Date().toISOString()});
+      else if(currentMap.has(date))deleteDates.push(date);
+    });
+    if(deleteDates.length){const {error}=await db.from(FENIX_V25_DAILY_TABLE).delete().eq("profile_id",profileId).in("result_date",deleteDates);if(error)throw error}
+    if(upserts.length){const {error}=await db.from(FENIX_V25_DAILY_TABLE).upsert(upserts,{onConflict:"profile_id,result_date"});if(error)throw error}
+    toast("Resultados diários salvos com sucesso!","success");await fenixV25LoadDailyResults();
+  }catch(error){console.error("Salvar Resultado Diário v25:",error);toast(error.message||"Não foi possível salvar. Confira o SQL v25 no Supabase.","error")}
+  finally{if(btn){btn.disabled=false;btn.textContent=old}}
+}
+function fenixV25InitDailyResults(){
+  if(!$("dailyResultsView"))return;
+  if($("fdrMonth")&&!$("fdrMonth").value)$("fdrMonth").value=new Date().toISOString().slice(0,7);
+  fenixV25PopulateConsultants();
+  if($("fdrMonth"))$("fdrMonth").onchange=fenixV25LoadDailyResults;
+  if($("fdrConsultant"))$("fdrConsultant").onchange=fenixV25LoadDailyResults;
+  if($("fdrRefresh"))$("fdrRefresh").onclick=fenixV25LoadDailyResults;
+  if($("fdrSaveAll"))$("fdrSaveAll").onclick=fenixV25SaveDailyResults;
+}
+const fenixV25ShowViewBase=showView;
+showView=function(id){
+  const r=fenixV25ShowViewBase(id);
+  if(id==="dailyResultsView"){
+    if($("pageTitle"))$("pageTitle").textContent="Resultado Diário";
+    setTimeout(()=>{fenixV25InitDailyResults();fenixV25LoadDailyResults()},80);
+  }
+  return r;
+};
+window.addEventListener("load",()=>setTimeout(fenixV25InitDailyResults,6500));
+document.addEventListener("click",e=>{if(e.target?.closest?.('[data-view="dailyResultsView"]'))setTimeout(()=>{fenixV25InitDailyResults();fenixV25LoadDailyResults()},150)});
+
+
+// ============================================================
+// FÊNIX ONE v26 — GESTÃO DE VENDAS INTEGRADA
+// Módulo novo, sem substituir as rotinas/propostas existentes.
+// ============================================================
+const FENIX_V26_SALES_TABLE = "fenix_sales_management";
+let fenixV26Rows = [];
+function fenixV26ProfileName(id){ const p=(state.profiles||[]).find(x=>x.id===id); return p?.full_name||p?.name||p?.email||"-"; }
+function fenixV26Safe(v){ return String(v||"").replace(/[^a-zA-Z0-9À-ÿ _-]/g,"").trim()||"Equipe Fênix"; }
+function fenixV26IsSupervisor(){ return typeof supervisor==="function" ? supervisor() : String(state.profile?.role||"").toLowerCase()==="supervisora"; }
+function fenixV26PopulateConsultants(){
+  const el=$("fvmConsultant"); if(!el) return;
+  const current=el.value;
+  const people=(state.profiles||[]).filter(p=>p.active!==false && String(p.role||"").toLowerCase()!=="supervisora").sort((a,b)=>fenixV26ProfileName(a.id).localeCompare(fenixV26ProfileName(b.id)));
+  el.innerHTML='<option value="">Todos os consultores</option>'+people.map(p=>`<option value="${esc(p.id)}">${esc(fenixV26ProfileName(p.id))}</option>`).join("");
+  if(current) el.value=current;
+}
+function fenixV26MonthRange(){
+  const month=$("fvmMonth")?.value || new Date().toISOString().slice(0,7);
+  const start=`${month}-01`;
+  const d=new Date(`${month}-01T12:00:00`); d.setMonth(d.getMonth()+1); d.setDate(0);
+  const end=d.toISOString().slice(0,10);
+  return {month,start,end};
+}
+async function fenixV26Load(){
+  if(!$('salesManagementView') || !state.session) return;
+  try{
+    fenixV26PopulateConsultants();
+    const {start,end}=fenixV26MonthRange();
+    let q=db.from(FENIX_V26_SALES_TABLE).select('*').gte('sale_date',start).lte('sale_date',end).order('sale_date',{ascending:false}).order('created_at',{ascending:false});
+    const consultant=$("fvmConsultant")?.value;
+    const status=$("fvmStatus")?.value;
+    if(!fenixV26IsSupervisor()) q=q.eq('profile_id',state.session.user.id);
+    else if(consultant) q=q.eq('profile_id',consultant);
+    if(status) q=q.eq('status',status);
+    const {data,error}=await q;
+    if(error) throw error;
+    fenixV26Rows=data||[];
+    fenixV26Render();
+  }catch(e){ console.error('Gestão de Vendas v26',e); toast(e.message||'Não foi possível carregar a Gestão de Vendas.','error'); }
+}
+function fenixV26Render(){
+  const closed=fenixV26Rows.filter(r=>r.status==='fechada');
+  const revenue=closed.reduce((s,r)=>s+Number(r.revenue_cents||0),0);
+  const mig=closed.reduce((s,r)=>s+Number(r.migrations||0),0);
+  const port=closed.filter(r=>r.has_portability).length;
+  $("fvmSalesCount").textContent=String(closed.length);
+  $("fvmRevenue").textContent=money(revenue);
+  $("fvmMigrations").textContent=String(mig);
+  $("fvmPortabilities").textContent=String(port);
+  const wrap=$("fvmTable");
+  if(!fenixV26Rows.length){ wrap.innerHTML='<div class="empty-state">Nenhuma venda encontrada para os filtros selecionados.</div>'; return; }
+  wrap.innerHTML=`<table class="data-table"><thead><tr><th>Data</th><th>Consultor</th><th>CNPJ</th><th>Razão Social</th><th>Produto/Solução</th><th>Migrações</th><th>Receita</th><th>Portabilidade</th><th>Status</th></tr></thead><tbody>${fenixV26Rows.map(r=>`<tr><td>${brDate(r.sale_date)}</td><td>${esc(fenixV26ProfileName(r.profile_id))}</td><td>${esc(r.cnpj||'-')}</td><td>${esc(r.company_name||'-')}</td><td>${esc(r.product_name||'-')}</td><td>${Number(r.migrations||0)}</td><td>${money(r.revenue_cents)}</td><td>${r.has_portability?'SIM':'NÃO'}</td><td><span class="fvm-status fvm-status-${esc(r.status)}">${esc(r.status==='fechada'?'Fechada':r.status==='cancelada'?'Cancelada':'Pendente')}</span></td></tr>`).join('')}</tbody></table>`;
+}
+async function fenixV26Save(e){
+  e.preventDefault();
+  const btn=$("fvmSaveSale"); const old=btn?.textContent;
+  try{
+    if(!state.session?.user?.id) throw new Error('Sessão expirada. Entre novamente.');
+    const row={profile_id:state.session.user.id,sale_date:$("fvmSaleDate").value,cnpj:$("fvmCnpj").value.trim(),company_name:$("fvmCompany").value.trim(),product_name:$("fvmProduct").value.trim(),migrations:Number($("fvmSaleMigrations").value||0),revenue_cents:cents($("fvmSaleRevenue").value),has_portability:$("fvmPortability").value==='true',status:$("fvmSaleStatus").value,updated_at:new Date().toISOString()};
+    if(!row.sale_date||!row.cnpj||!row.company_name||!row.product_name) throw new Error('Preencha os dados do cliente e da venda.');
+    if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+    const {error}=await db.from(FENIX_V26_SALES_TABLE).insert(row);
+    if(error) throw error;
+    toast('Venda registrada com sucesso!','success');
+    $("fvmCnpj").value=''; $("fvmCompany").value=''; $("fvmProduct").value=''; $("fvmSaleMigrations").value='0'; $("fvmSaleRevenue").value=''; $("fvmPortability").value='false'; $("fvmSaleStatus").value='fechada';
+    await fenixV26Load();
+  }catch(e){ console.error(e); toast(e.message||'Não foi possível salvar a venda.','error'); }
+  finally{if(btn){btn.disabled=false;btn.textContent=old;}}
+}
+function fenixV26Export(){
+  if(typeof XLSX==='undefined') return toast('Biblioteca de Excel não carregou.','error');
+  if(!fenixV26Rows.length) return toast('Não há dados para exportar.','error');
+  const data=fenixV26Rows.map(r=>({Data:brDate(r.sale_date),Consultor:fenixV26ProfileName(r.profile_id),CNPJ:r.cnpj||'',"Razão Social":r.company_name||'',"Produto/Solução":r.product_name||'',Migrações:Number(r.migrations||0),Receita:Number(r.revenue_cents||0)/100,Portabilidade:r.has_portability?'Sim':'Não',Status:r.status==='fechada'?'Fechada':r.status==='cancelada'?'Cancelada':'Pendente'}));
+  const ws=XLSX.utils.json_to_sheet(data); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Gestão de Vendas');
+  const month=$("fvmMonth")?.value||'periodo'; const c=$("fvmConsultant")?.value; const who=c?fenixV26ProfileName(c):(fenixV26IsSupervisor()?'Equipe Fênix':fenixV26ProfileName(state.session.user.id));
+  XLSX.writeFile(wb,`Gestao de Vendas - ${fenixV26Safe(who)} - ${month}.xlsx`);
+}
+function fenixV26Init(){
+  if(!$('salesManagementView')) return;
+  if($("fvmMonth")&&!$("fvmMonth").value) $("fvmMonth").value=new Date().toISOString().slice(0,7);
+  if($("fvmSaleDate")&&!$("fvmSaleDate").value) $("fvmSaleDate").value=isoToday();
+  fenixV26PopulateConsultants();
+  $("fvmMonth")&&( $("fvmMonth").onchange=fenixV26Load );
+  $("fvmConsultant")&&( $("fvmConsultant").onchange=fenixV26Load );
+  $("fvmStatus")&&( $("fvmStatus").onchange=fenixV26Load );
+  $("fvmRefresh")&&( $("fvmRefresh").onclick=fenixV26Load );
+  $("fvmExport")&&( $("fvmExport").onclick=fenixV26Export );
+  $("fvmClear")&&( $("fvmClear").onclick=()=>{ $("fvmConsultant").value='';$("fvmStatus").value='';fenixV26Load(); });
+  $("fvmSaleForm")&&( $("fvmSaleForm").onsubmit=fenixV26Save );
+  fenixV26Load();
+}
+if(typeof showView==='function'){
+  const fenixV26ShowViewBase=showView;
+  showView=function(id){ const r=fenixV26ShowViewBase(id); if(id==='salesManagementView'){ if($("pageTitle"))$("pageTitle").textContent='Gestão de Vendas'; setTimeout(fenixV26Init,80); } return r; };
+}
+window.addEventListener('load',()=>setTimeout(fenixV26Init,6500));
