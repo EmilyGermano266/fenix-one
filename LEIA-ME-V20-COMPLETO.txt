@@ -1,0 +1,15 @@
+FÊNIX ONE — V20 COMPLETA (pacote de publicação)
+
+Inclui: index.html, script.js, style.css, service-worker.js, manifest.json, ícones 180/192/512 e SUPABASE_V20.sql.
+
+Base: arquivos V19 enviados pela usuária e alterações V20 preparadas.
+
+Mudanças: planos de migração/E-SIM separados dos planos de venda/Linha Nova; edição de valores pela supervisora; cancelar/remover propostas do histórico (remoção lógica); acesso ao EstoqueProX; totais de propostas alinhados dentro dos quadros na tela e impressão.
+
+Os ícones do aplicativo foram recriados (não são cópias dos ícones originais, que não foram fornecidos).
+
+IMPORTANTE: Não execute SUPABASE_V20.sql novamente se já o executou com sucesso.
+
+Publique os arquivos da pasta raiz no projeto Vercel existente. Após deploy, faça Ctrl+F5 e teste com login de supervisora.
+
+Validação feita: sintaxe JS, estrutura ZIP e referências locais. Não foi realizado teste autenticado contra o Supabase nem deploy na Vercel.

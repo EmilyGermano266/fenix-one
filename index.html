@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fênix One — Equipe Fênix</title>
   <meta name="description" content="Sistema comercial inteligente da Equipe Fênix." />
-  <link rel="stylesheet" href="style.css?v=20260918-v27" />
+  <link rel="stylesheet" href="style.css?v=20261020-v20-completo" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
@@ -70,8 +70,7 @@
         <button class="nav-item" data-view="proposalsView">📄 <span>Propostas</span></button>
         <button class="nav-item" data-view="faqView">💬 <span>Dúvidas Frequentes</span></button>
         <button class="nav-item" data-view="devicesProposalView">📱 <span>Proposta de Aparelhos</span></button>
-        <button id="navSalesManagement" class="nav-item" data-view="salesManagementView">💼 <span>Gestão de Vendas</span></button>
-        <button id="navDailyResults" class="nav-item supervisor-only" data-view="dailyResultsView">🗓️ <span>Resultado Diário</span></button>
+        <button id="navResults" class="nav-item" data-view="resultsView">📊 <span>Resultados</span></button>
         <button id="navNotifications" class="nav-item supervisor-only" data-view="notificationsView">🔔 <span>Notificações</span><b id="notificationBadge" class="badge hidden">0</b></button>
         <button class="nav-item supervisor-only" data-view="adminView">⚙️ <span>Administração</span></button>
       </nav>
@@ -207,12 +206,6 @@
             <div id="recentProposals" class="table-wrap"></div>
           </div>
         </div>
-
-        <div id="fenixDashboardRoutinePanel" class="panel fenix-dashboard-routine supervisor-only">
-          <div class="panel-head"><div><p class="eyebrow">ROTINA</p><h3>Confirmações das tarefas</h3><p>Visão exclusiva da Supervisora sobre FIZ, NÃO CONSEGUI e atrasos.</p></div><button id="fenixDashRoutineRefresh" class="btn btn-secondary" type="button">↻ Atualizar</button></div>
-          <div class="form-grid cols-2"><label>Mês de referência<input id="fenixDashRoutineMonth" type="month"></label><label>Consultor<select id="fenixDashRoutineConsultant"><option value="">Todos os consultores</option></select></label></div>
-          <div id="fenixDashRoutineTable" class="table-wrap"></div>
-        </div>
       </section>
 
       <section id="calculatorView" class="view">
@@ -226,7 +219,7 @@
               <label>CNPJ<input id="cnpj" required inputmode="numeric" maxlength="18" placeholder="00.000.000/0000-00" /><small id="cnpjHelp"></small></label>
               <label>Consultor<input id="consultantName" readonly /></label>
               <label>Data da proposta<input id="proposalDate" type="date" required /></label>
-              <label>Validade <small class="fenix-validity-note">1 dia por padrão • pode alterar</small><input id="validityDate" type="date" required /></label>
+              <label>Validade<input id="validityDate" type="date" required /></label>
               <label>Franquia atual (GB)<input id="currentFranchise" type="number" min="0" step="0.01" required placeholder="263" /></label>
               <label>Faturamento atual<input id="currentBilling" class="money-input" inputmode="decimal" required placeholder="R$ 0,00" /></label>
               <label>Reajuste<select id="adjustmentPercent"><option value="0">0%</option><option value="5">5%</option><option value="10">10%</option><option value="15">15%</option><option value="20">20%</option><option value="25">25%</option><option value="30">30%</option><option value="35">35%</option><option value="40">40%</option></select></label>
@@ -373,85 +366,17 @@
 
 
       <section id="devicesProposalView" class="view">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">APARELHOS</p>
-            <h3>Proposta de Aparelhos</h3>
-            <p>Carregue a planilha, filtre os aparelhos e gere a proposta sem sair do Fênix One.</p>
-          </div>
-          <button class="btn btn-secondary refresh-view-btn" type="button" data-refresh-view="devicesProposalView">↻ Atualizar</button>
-        </div>
-
-        <div class="panel devices-upload-panel">
-          <div class="devices-grid">
-            <label>Planilha Excel / CSV
-              <input type="file" id="devicesFileInput" accept=".xlsx,.xls,.csv">
-            </label>
-            <label>Aba da planilha
-              <select id="devicesSheetSelect" disabled></select>
-            </label>
-          </div>
-
-          <div class="device-actions">
-            <button id="devicesLoadBtn" class="btn btn-primary" type="button">Carregar planilha</button>
-            <button id="devicesRemoveDupBtn" class="btn btn-secondary" type="button" disabled>Remover duplicados</button>
-            <button id="devicesClearFiltersBtn" class="btn btn-secondary" type="button" disabled>Limpar filtros</button>
-            <button id="devicesGenerateProposalBtn" class="btn btn-primary" type="button" disabled>📋 Gerar proposta</button>
-          </div>
-
-          <div class="devices-stats">
-            <article><span>Total carregado</span><strong id="devicesTotalRows">0</strong></article>
-            <article><span>Após duplicados</span><strong id="devicesDedupRows">0</strong></article>
-            <article><span>Resultado filtrado</span><strong id="devicesFilteredRows">0</strong></article>
-            <article><span>Status</span><strong id="devicesStatus">Aguardando arquivo</strong></article>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><div><h3>Filtros</h3><p>Os filtros são criados automaticamente pelas colunas da planilha.</p></div></div>
-          <div id="devicesFiltersContainer" class="devices-grid"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><div><h3>Acréscimo nas parcelas</h3><p>Opcional.</p></div></div>
-          <div class="devices-grid">
-            <label>Acréscimo em 10X (R$)
-              <input type="number" id="devicesAdd10" min="0" step="0.01" placeholder="Ex.: 50">
-            </label>
-            <label>Acréscimo em 24X (R$)
-              <input type="number" id="devicesAdd24" min="0" step="0.01" placeholder="Ex.: 20">
-            </label>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><div><h3>Resultado</h3><p>Visualização dos aparelhos filtrados.</p></div></div>
-          <div class="devices-table-wrap">
-            <table id="devicesTable"><thead id="devicesThead"></thead><tbody id="devicesTbody"></tbody></table>
-          </div>
-        </div>
-
-        <div id="devicesProposalModal" class="modal hidden" role="dialog" aria-modal="true">
-          <div class="modal-backdrop" data-close-devices-proposal></div>
-          <div class="modal-card proposal-modal-card">
-            <div class="modal-toolbar">
-              <div><p class="eyebrow">PROPOSTA DE APARELHOS</p><h3>Vivo Empresas</h3></div>
-              <button class="icon-btn" data-close-devices-proposal aria-label="Fechar">×</button>
-            </div>
-            <div id="devicesProposalDocument" class="proposal-document devices-proposal-document"></div>
-            <div class="modal-actions proposal-action-bar">
-              <button data-close-devices-proposal class="btn btn-secondary">Voltar</button>
-              <div class="proposal-action-group">
-                <button id="devicesPdfBtn" type="button" class="btn btn-secondary">📄 Salvar em PDF</button>
-                <button id="devicesImageBtn" type="button" class="btn btn-secondary">📸 Salvar imagem</button>
-              </div>
-            </div>
-          </div>
+        <div class="section-heading"><div><p class="eyebrow">APARELHOS</p><h3>EstoqueProX — Proposta de Aparelhos</h3><p>Acesse o novo sistema de estoque e propostas de aparelhos.</p></div></div>
+        <div class="panel"><p>O EstoqueProX é um sistema externo. Você pode abri-lo em uma nova aba ou tentar visualizá-lo abaixo.</p>
+          <a class="btn btn-primary" href="https://estoqueprox.netlify.app/" target="_blank" rel="noopener noreferrer">Abrir EstoqueProX ↗</a>
+          <button id="fenixV20EmbedBtn" type="button" class="btn btn-secondary">Visualizar nesta página</button>
+          <p class="fenix-v20-embed-note">Se o site externo bloquear a incorporação, utilize o botão Abrir EstoqueProX.</p>
+          <div id="fenixV20EmbedArea" class="hidden"><iframe title="EstoqueProX" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:78vh;border:1px solid #e9e2ec;border-radius:14px" ></iframe></div>
         </div>
       </section>
 
 
-      <section id="resultsView" class="view fenix-legacy-results-hidden">
+      <section id="resultsView" class="view">
         <div class="section-heading">
           <div>
             <p class="eyebrow">RESULTADOS</p>
@@ -485,123 +410,6 @@
             </div>
           </div>
           <div id="frTable" class="table-wrap"></div>
-        </div>
-      </section>
-
-
-      <section id="salesManagementView" class="view">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">GESTÃO COMERCIAL</p>
-            <h3>Gestão de Vendas</h3>
-            <p>Registre cada fechamento por categoria e alimente automaticamente o Resultado Diário.</p>
-          </div>
-          <div class="section-actions">
-            <button id="fvmRefresh" class="btn btn-secondary" type="button">↻ Atualizar</button>
-            <button id="fvmExport" class="btn btn-secondary" type="button">📥 Exportar Excel</button>
-          </div>
-        </div>
-        <div class="panel fvm-filters">
-          <div class="form-grid cols-4">
-            <label>Mês de referência<input id="fvmMonth" type="month"></label>
-            <label>Consultor<select id="fvmConsultant"><option value="">Todos os consultores</option></select></label>
-            <label>Status<select id="fvmStatus"><option value="">Todos</option><option value="fechada">Fechada</option><option value="pendente">Pendente</option><option value="cancelada">Cancelada</option></select></label>
-            <div class="fvm-filter-action"><button id="fvmClear" class="btn btn-ghost" type="button">Limpar filtros</button></div>
-          </div>
-        </div>
-        <div class="fvm-kpis fvm-kpis-v27">
-          <div class="fvm-kpi"><span>Vendas</span><b id="fvmSalesCount">0</b></div>
-          <div class="fvm-kpi"><span>Receita geral</span><b id="fvmRevenue">R$ 0,00</b></div>
-          <div class="fvm-kpi"><span>Migrações Móvel</span><b id="fvmMigrations">0</b></div>
-          <div class="fvm-kpi"><span>Migrações BL</span><b id="fvmBlMigrations">0</b></div>
-          <div class="fvm-kpi"><span>Aparelhos</span><b id="fvmDeviceCount">0</b></div>
-          <div class="fvm-kpi"><span>Valor dos aparelhos</span><b id="fvmDeviceRevenue">R$ 0,00</b></div>
-          <div class="fvm-kpi"><span>Portabilidades</span><b id="fvmPortabilities">0</b></div>
-        </div>
-        <div class="panel fvm-entry-panel">
-          <div class="panel-head"><div><p class="eyebrow">NOVO FECHAMENTO</p><h3>Registrar venda</h3><p>O consultor pode adicionar vários itens em cada categoria. A receita de aparelho fica separada da Receita Geral.</p></div></div>
-          <form id="fvmSaleForm" class="fvm-v27-sale-form">
-            <div class="form-grid cols-4">
-              <label>Data<input id="fvmSaleDate" type="date" required></label>
-              <label>CNPJ<input id="fvmCnpj" inputmode="numeric" placeholder="00.000.000/0000-00" required></label>
-              <label>Razão Social<input id="fvmCompany" placeholder="Nome da empresa" required></label>
-              <label>Portabilidade
-                <div class="fvm-toggle-group"><button type="button" class="fvm-choice active" data-port="false">NÃO</button><button type="button" class="fvm-choice" data-port="true">SIM</button></div>
-              </label>
-            </div>
-            <input id="fvmPortability" type="hidden" value="false">
-
-            <div class="fvm-category" data-cat="mobile">
-              <div class="fvm-category-head"><h4>📱 Receita de Móvel (ALTA ou PN)</h4><button type="button" class="btn btn-secondary fvm-add-item" data-add="mobile">+ Adicionar Móvel</button></div>
-              <div class="fvm-item-list" id="fvmMobileItems"></div>
-            </div>
-            <div class="fvm-category" data-cat="device">
-              <div class="fvm-category-head"><h4>📱 Receita de Aparelho</h4><button type="button" class="btn btn-secondary fvm-add-item" data-add="device">+ Adicionar Aparelho</button></div>
-              <div class="fvm-item-list" id="fvmDeviceItems"></div>
-              <small class="fvm-note">Valor e quantidade de aparelhos são exibidos separadamente e não entram na Receita Geral.</small>
-            </div>
-            <div class="fvm-category" data-cat="basic_fixed">
-              <div class="fvm-category-head"><h4>🌐 Receita de Fixa Básica</h4><button type="button" class="btn btn-secondary fvm-add-item" data-add="basic_fixed">+ Adicionar Fixa Básica</button></div>
-              <div class="fvm-item-list" id="fvmBasicFixedItems"></div>
-            </div>
-            <div class="fvm-category" data-cat="advanced_fixed">
-              <div class="fvm-category-head"><h4>🏢 Receita de Fixa Avançada</h4><button type="button" class="btn btn-secondary fvm-add-item" data-add="advanced_fixed">+ Adicionar Fixa Avançada</button></div>
-              <div class="fvm-item-list" id="fvmAdvancedFixedItems"></div>
-            </div>
-            <div class="fvm-category" data-cat="bl_migration">
-              <div class="fvm-category-head"><h4>🔄 Migração de BL</h4><button type="button" class="btn btn-secondary fvm-add-item" data-add="bl_migration">+ Adicionar Migração BL</button></div>
-              <div class="fvm-item-list" id="fvmBlMigrationItems"></div>
-              <small class="fvm-note">Aqui é registrada somente a quantidade de migrações BL. Não existe valor de receita.</small>
-            </div>
-
-            <div class="fvm-day-total">
-              <div><span>Migrações Móvel</span><strong id="fvmFormMobileMig">0</strong></div>
-              <div><span>Migrações BL</span><strong id="fvmFormBlMig">0</strong></div>
-              <div><span>Aparelhos</span><strong id="fvmFormDevices">0 un.</strong></div>
-              <div><span>Valor dos aparelhos</span><strong id="fvmFormDeviceRevenue">R$ 0,00</strong></div>
-              <div class="main-total"><span>Receita Geral do dia</span><strong id="fvmFormRevenue">R$ 0,00</strong></div>
-            </div>
-            <div class="form-grid cols-3">
-              <label>Status<select id="fvmSaleStatus"><option value="fechada">Fechada</option><option value="pendente">Pendente</option><option value="cancelada">Cancelada</option></select></label>
-              <div class="fvm-save-action"><button id="fvmClearForm" class="btn btn-ghost" type="button">Limpar lançamento</button></div>
-              <div class="fvm-save-action"><button id="fvmSaveSale" class="btn btn-primary" type="submit">Salvar venda</button></div>
-            </div>
-          </form>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><div><p class="eyebrow">MOVIMENTAÇÕES</p><h3>Vendas registradas</h3></div></div>
-          <div id="fvmTable" class="table-wrap"><div class="empty-state">Carregando...</div></div>
-        </div>
-      </section>
-
-      <section id="dailyResultsView" class="view supervisor-only">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">GESTÃO DE RESULTADOS</p>
-            <h3>Resultado Diário</h3>
-            <p>Preencha a entrega diária de cada consultor. O Fênix soma automaticamente cada semana de segunda a sexta e o total do mês.</p>
-          </div>
-          <button id="fdrRefresh" class="btn btn-secondary" type="button">↻ Atualizar</button>
-        </div>
-
-        <div class="panel fdr-filter-panel">
-          <div class="form-grid cols-3">
-            <label>Mês de referência
-              <input id="fdrMonth" type="month">
-            </label>
-            <label>Consultor
-              <select id="fdrConsultant"><option value="">Selecione o consultor</option></select>
-            </label>
-            <div class="fdr-filter-action">
-              <button id="fdrSaveAll" class="btn btn-primary" type="button">Salvar resultados do mês</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="fdrSummary" class="fdr-month-summary hidden"></div>
-        <div id="fdrZeroSummary" class="panel fdr-zero-summary"></div>
-        <div id="fdrWeeks" class="fdr-weeks">
-          <div class="empty-state">Selecione o mês e um consultor para preencher os resultados diários.</div>
         </div>
       </section>
 
@@ -639,7 +447,7 @@
 <div id="collaboratorFormMessage" class="form-message"></div>
 <div id="profilesTable" class="table-wrap"></div>
 </div>
-        <div class="panel"><div class="panel-head"><div><h3>Planos móveis</h3><p>Valores atualmente cadastrados no Supabase.</p></div></div><div id="adminPlansTable" class="table-wrap"></div></div>
+        <div class="panel"><div class="panel-head"><div><h3>Planos móveis</h3><p>Gerencie os valores de migração e venda separadamente.</p></div></div><div id="adminPlansTable" class="table-wrap"></div></div>
 
         <div class="panel">
           <div class="panel-head"><div><h3>Catálogo de produtos</h3><p>Altere valores, status e se o produto conta como Receita / Venda Alta.</p></div></div>
@@ -772,6 +580,6 @@
       <div id="materialContentActions" class="material-content-actions"></div>
     </div>
   </div>
-  <script src="script.js?v=20260918-v27"></script>
+  <script src="script.js?v=20261020-v20-completo"></script>
 </body>
 </html>
