@@ -6529,3 +6529,98 @@ document.addEventListener('click',e=>{
 },true);
 document.addEventListener('change',e=>{if(e.target.id==='mobileType')setTimeout(fenixV20RenderMobileOptions,0);});
 window.addEventListener('load',()=>setTimeout(()=>{fenixV20RenderAdmin();fenixV20RenderMobileOptions();},1200));
+
+
+// ============================================================
+// FÊNIX ONE V21 — EDIÇÃO DE PROPOSTA E NOMES DE ARQUIVOS
+// ============================================================
+let fenixV21EditingId = null;
+let fenixV21SavedModalId = null;
+function fenixV21FileBase(id){
+  let name = '';
+  if(id==='savedProposalDocument'){
+    const p=state.proposals.find(x=>String(x.id)===String(fenixV21SavedModalId));
+    name=p?.client_name||p?.client_snapshot?.clientName||'';
+  } else {
+    name=state.previewPayload?.client_name||state.previewPayload?.client_snapshot?.clientName||$('clientName')?.value||'';
+  }
+  const clean=String(name||'SEM NOME').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\\/:*?"<>|\x00-\x1f]/g,'').replace(/\s+/g,' ').trim().slice(0,110);
+  return `PROPOSTA - ${clean||'SEM NOME'}`;
+}
+function fenixV21EditingUI(){
+  const b=$('fenixV21SaveEditBtn');if(b)b.classList.toggle('hidden',!fenixV21EditingId);
+}
+const fenixV21OriginalOpenSaved=openSaved;
+openSaved=function(id){fenixV21SavedModalId=id;return fenixV21OriginalOpenSaved(id);};
+const fenixV21OriginalReset=reset;
+reset=function(){fenixV21EditingId=null;fenixV21OriginalReset();fenixV21EditingUI();};
+function fenixV21EditSaved(){
+  const p=state.proposals.find(x=>String(x.id)===String(fenixV21SavedModalId));
+  if(!p)return toast('Não foi possível localizar a proposta.','error');
+  if(p.consultant_id!==state.session?.user?.id&&!supervisor())return toast('Você não tem permissão para editar esta proposta.','error');
+  $('savedProposalModal')?.classList.add('hidden');
+  duplicate(p.id);
+  fenixV21EditingId=p.id;
+  state.duplicateSourceId=null;
+  $('proposalDate').value=p.proposal_date||isoToday();
+  $('validityDate').value=(p.client_snapshot?.validityDate||String(p.validity_at||'').slice(0,10)||isoTomorrow());
+  fenixV21EditingUI();
+  toast('Edite os campos e clique em Gerar / Visualizar proposta.','success');
+}
+async function fenixV21SaveChanges(){
+  if(!fenixV21EditingId)return;
+  const errors=validate();if(errors.length)return toast(errors[0],'error');
+  const id=fenixV21EditingId;
+  const original=state.proposals.find(x=>String(x.id)===String(id));
+  if(!original)return toast('Proposta original não encontrada.','error');
+  const next=payload();
+  // Preserva status, autoria e numeração. Nunca cria outra proposta.
+  const update={...next,status:original.status,consultant_id:original.consultant_id,
+    internal_data:{...(original.internal_data||{}),...(next.internal_data||{}),edited_at:new Date().toISOString()}};
+  delete update.fenix_number;
+  const btn=$('fenixV21SaveEditBtn');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  try{
+    const {data,error}=await db.from('proposals').update(update).eq('id',id).select('*').single();
+    if(error)throw error;
+    state.previewPayload={...next,client_snapshot:data.client_snapshot};
+    state.previewSavedProposal=data;
+    $('proposalDocument').innerHTML=proposalHTML(data.client_snapshot||{},data.fenix_number||'');
+    fenixV21EditingId=null;fenixV21EditingUI();
+    await loadProposals();renderProposals();renderDashboard();
+    toast('Alterações salvas na proposta original.','success');
+  }catch(e){console.error(e);toast(e.message||'Não foi possível salvar as alterações.','error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='💾 Salvar alterações';}}
+}
+// Garante que o modo de edição permaneça visível após gerar a prévia.
+document.addEventListener('click',e=>{
+  if(e.target.closest('#fenixV21EditSavedBtn')){e.preventDefault();fenixV21EditSaved();}
+  if(e.target.closest('#fenixV21SaveEditBtn')){e.preventDefault();fenixV21SaveChanges();}
+  if(e.target.closest('#previewProposalBtn'))setTimeout(fenixV21EditingUI,80);
+},true);
+// Não permitir que os botões PDF/Imagem criem outra proposta enquanto
+// uma alteração existente ainda não tiver sido salva.
+document.addEventListener('click',e=>{
+  if(fenixV21EditingId&&e.target.closest('#pdfPreviewBtn,#imagePreviewBtn')){
+    e.preventDefault();e.stopImmediatePropagation();
+    toast('Primeiro clique em Salvar alterações para atualizar esta proposta.','error');
+  }
+},true);
+// Nome do PDF pelo título da aba na impressão (Salvar como PDF no navegador).
+const fenixV21OriginalPrint=printProposalElement;
+printProposalElement=function(id){
+  const previous=document.title;
+  document.title=fenixV21FileBase(id);
+  const restore=()=>{document.title=previous;window.removeEventListener('afterprint',restore);};
+  window.addEventListener('afterprint',restore,{once:true});
+  setTimeout(restore,120000);
+  return fenixV21OriginalPrint(id);
+};
+// O PDF também é acionado por saveAsPDF, que chama printProposalElement.
+// Nome da imagem sem alterar a lógica de captura existente.
+const fenixV21OriginalImage=v10SaveProposalImage;
+v10SaveProposalImage=async function(id,filename){
+  if(id==='proposalDocument'||id==='savedProposalDocument')filename=`${fenixV21FileBase(id)}.png`;
+  return fenixV21OriginalImage(id,filename);
+};
+// Em prévia, atualizar visualização de edição ao final do bootstrap.
+window.addEventListener('load',()=>setTimeout(fenixV21EditingUI,1000));
