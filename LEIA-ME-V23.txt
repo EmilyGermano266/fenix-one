@@ -1,24 +1,16 @@
-FÊNIX ONE v23 — CORREÇÃO IMEDIATA
+FÊNIX ONE V23 — IMPORTAÇÃO ASSISTIDA DE APARELHOS
 
-1. Restaurado o campo “M da linha” para itens do tipo Migração.
-   - Migração exige/preenche M.
-   - E-SIM e Linha Nova não exibem nem exigem M.
-   - Botão Remover foi preservado.
+1. Abra Proposta de Aparelhos > EstoqueProX.
+2. No EstoqueProX, clique em "Baixar CSV filtrado".
+3. Em "Importar aparelhos para a Nova Proposta", selecione o CSV baixado.
+4. Confira o mapeamento das colunas: modelo, preço total unitário e quantidade.
+5. Selecione o parcelamento e revise a prévia. Se houver dados inválidos, corrija o arquivo ou o mapeamento.
+6. Clique em "Adicionar aparelhos à Nova Proposta". Confira o resumo e salve.
 
-2. Rolagem horizontal:
-   - Áreas largas do sistema agora permitem rolar/arrastar para direita e esquerda.
-   - Aplicado também a Dashboard, Propostas, Resultados, tabelas e Etapa 2.
-   - O conteúdo não precisa ser espremido para caber.
+A importação funciona sem acesso ao código do EstoqueProX. Não é sincronização automática.
+Preço importado = valor total à vista unitário do aparelho; parcela é calculada conforme parcelamento.
+Os itens são adicionados como produtos novos e, por segurança, não são marcados automaticamente como receita.
 
-Esta versão NÃO aplica ainda o próximo ajuste geral de tamanho das letras.
-Ele fica para a rodada seguinte, depois do teste completo da proposta.
-
-Não precisa executar SQL.
-
-Substitua no GitHub:
-- index.html
-- script.js
-- style.css
-- service-worker.js
-
-Depois aguarde a Vercel ficar Ready e faça Ctrl + F5.
+Mantidos os arquivos e alterações da V22, inclusive E-SIM = tabela de Linha Nova.
+Atualização: extraia o ZIP e envie os arquivos para a branch main do GitHub. Aguarde a Vercel publicar.
+Não execute SQL novamente.

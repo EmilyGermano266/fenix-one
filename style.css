@@ -1998,3 +1998,10 @@ html,body{max-width:100%;overflow-x:hidden}
   body.printing-proposal #printRoot .plan-grid > .proposal-plan { display:flex!important; flex-direction:column!important; }
   body.printing-proposal #printRoot .plan-grid > .proposal-plan > .plan-price { margin-top:auto!important; padding-top:3mm!important; }
 }
+
+/* Fênix V23 — importação assistida de aparelhos */
+.fenix-import-panel{margin:20px 0;padding:20px;border:1px solid #d9c5e5;border-radius:16px;background:#fcf9fe}
+.fenix-import-panel h3{margin-bottom:8px}.fenix-import-panel p{font-size:13px;color:#675b6c}
+.fenix-import-mapping{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.fenix-import-warning{color:#885400!important}.fenix-import-panel table{min-width:540px}
+@media(max-width:650px){.fenix-import-mapping{grid-template-columns:1fr}}

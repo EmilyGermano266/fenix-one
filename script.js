@@ -6442,7 +6442,7 @@ async function fenixV20LoadSales(){
 function fenixV20RenderMobileOptions(){
   const el=$('mobilePlanSelect');if(!el)return;
   const mode=$('mobileType')?.value||'migration';
-  const plans=mode==='new_line'?fenixV20SalesPlans.filter(p=>p.active):state.mobilePlans.filter(p=>p.active);
+  const plans=(mode==='new_line'||mode==='esim')?fenixV20SalesPlans.filter(p=>p.active):state.mobilePlans.filter(p=>p.active);
   const previous=el.value;
   el.innerHTML=plans.map(p=>`<option value="${p.id??'sale-'+p.gb}">${Number(p.gb)} GB — ${money(p.price_cents)}</option>`).join('');
   if([...el.options].some(o=>o.value===previous))el.value=previous;
@@ -6453,17 +6453,17 @@ const fenixV20CatalogRenderBase=renderCatalogs;
 renderCatalogs=function(){fenixV20CatalogRenderBase();fenixV20RenderMobileOptions();};
 const fenixV20AddMobileBase=addMobile;
 addMobile=function(){
-  if($('mobileType')?.value!=='new_line')return fenixV20AddMobileBase();
-  if(!fenixV20SalesReady)return toast('Cadastre a tabela de venda executando o SQL V20 no Supabase.','error');
+  if(!['new_line','esim'].includes($('mobileType')?.value))return fenixV20AddMobileBase();
+  if(!fenixV20SalesReady)return toast('A tabela de Linha Nova/E-SIM não está disponível. Verifique o SQL V20 no Supabase.','error');
   const p=fenixV20SalesPlans.find(x=>String(x.id)===$('mobilePlanSelect').value);
   if(!p)return toast('Selecione um plano de venda válido.','error');
-  state.mobileItems.push({uid:crypto.randomUUID(),planId:p.id,gb:Number(p.gb),priceCents:Number(p.price_cents),type:'new_line',quantity:Math.max(1,+$('mobileQuantity').value||1),m:null,keepInNew:true});
+  state.mobileItems.push({uid:crypto.randomUUID(),planId:p.id,gb:Number(p.gb),priceCents:Number(p.price_cents),type:$('mobileType').value,quantity:Math.max(1,+$('mobileQuantity').value||1),m:null,keepInNew:true});
   $('mobileQuantity').value=1;renderMobile();updateCalc();
 };
 function fenixV20RenderAdmin(){
   if(!supervisor()||!$('adminPlansTable'))return;
   const makeRows=(plans,mode)=>plans.map(p=>`<tr><td>${Number(p.gb)} GB</td><td><input class="fenix-v20-price" type="text" inputmode="decimal" value="${money(p.price_cents)}" data-mode="${mode}" data-id="${p.id}" aria-label="Preço ${Number(p.gb)} GB"></td><td><input type="checkbox" class="fenix-v20-active" data-mode="${mode}" data-id="${p.id}" ${p.active?'checked':''} aria-label="Ativar plano ${Number(p.gb)} GB"></td><td><button type="button" class="mini-btn fenix-v20-save" data-mode="${mode}" data-id="${p.id}">Salvar</button></td></tr>`).join('');
-  $('adminPlansTable').innerHTML=`<h4>Migração e E-SIM</h4><table><thead><tr><th>Plano</th><th>Preço</th><th>Ativo</th><th>Ação</th></tr></thead><tbody>${makeRows(fenixV20AllMigrationPlans.length?fenixV20AllMigrationPlans:state.mobilePlans,'migration')}</tbody></table><h4>Venda — Linha Nova</h4><table><thead><tr><th>Plano</th><th>Preço</th><th>Ativo</th><th>Ação</th></tr></thead><tbody>${makeRows(fenixV20SalesPlans,'sale')}</tbody></table><p class="fenix-v20-embed-note">Os valores são salvos no Supabase. Para adicionar outras franquias, utilize o catálogo no banco de dados.</p>`;
+  $('adminPlansTable').innerHTML=`<h4>Migração</h4><table><thead><tr><th>Plano</th><th>Preço</th><th>Ativo</th><th>Ação</th></tr></thead><tbody>${makeRows(fenixV20AllMigrationPlans.length?fenixV20AllMigrationPlans:state.mobilePlans,'migration')}</tbody></table><h4>Venda — Linha Nova e E-SIM</h4><table><thead><tr><th>Plano</th><th>Preço</th><th>Ativo</th><th>Ação</th></tr></thead><tbody>${makeRows(fenixV20SalesPlans,'sale')}</tbody></table><p class="fenix-v20-embed-note">Os valores são salvos no Supabase. Para adicionar outras franquias, utilize o catálogo no banco de dados.</p>`;
 }
 renderAdminPlans=fenixV20RenderAdmin;
 async function fenixV20SavePlan(btn){
@@ -6624,3 +6624,92 @@ v10SaveProposalImage=async function(id,filename){
 };
 // Em prévia, atualizar visualização de edição ao final do bootstrap.
 window.addEventListener('load',()=>setTimeout(fenixV21EditingUI,1000));
+
+
+// ============================================================
+// FÊNIX ONE V23 — Importação assistida CSV/XLSX do EstoqueProX.
+// Sem acesso ao código do site externo, não existe sincronização automática.
+// Nenhum arquivo é enviado a terceiros; a leitura ocorre no navegador.
+// ============================================================
+(function(){
+  let headers=[], rows=[];
+  const el=id=>document.getElementById(id);
+  const status=message=>{if(el('fenixImportStatus'))el('fenixImportStatus').textContent=message;};
+  const normalize=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ');
+  const best=(names)=>{
+    const i=headers.findIndex(h=>names.some(n=>normalize(h)===n));
+    if(i>=0)return i;
+    return headers.findIndex(h=>names.some(n=>normalize(h).includes(n)));
+  };
+  const choose=(id,selected,optional=false)=>{
+    const sel=el(id);sel.replaceChildren();
+    if(optional)sel.add(new Option('Não informado', '-1'));
+    headers.forEach((h,i)=>sel.add(new Option(h||`Coluna ${i+1}`,String(i))));
+    sel.value=selected>=0?String(selected):(optional?'-1':'0');
+    sel.addEventListener('change',renderPreview);
+  };
+  const get=(row,id)=>{const index=Number(el(id).value);return index<0?'':row[index]??'';};
+  const parseMoney=value=>{
+    if(typeof value==='number')return Number.isFinite(value)?value:NaN;
+    let s=String(value??'').trim().replace(/R\$|\s/g,'');
+    if(!s)return NaN;
+    // 1.234,56 -> 1234.56 ; 1,234.56 -> 1234.56
+    if(s.includes(',')&&s.includes('.'))s=s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
+    else if(s.includes(','))s=s.replace(',','.');
+    else if(/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
+    return Number(s);
+  };
+  const parsed=()=>rows.map((r,i)=>{
+    const model=String(get(r,'fenixImportModel')).trim();
+    const price=parseMoney(get(r,'fenixImportPrice'));
+    const rawQty=get(r,'fenixImportQty');
+    const quantity=rawQty===''?1:Number(rawQty);
+    return {model,price,quantity,row:i+2,valid:!!model&&Number.isFinite(price)&&price>0&&Number.isInteger(quantity)&&quantity>0&&quantity<=1000};
+  }).filter(x=>x.model||Number.isFinite(x.price));
+  function renderPreview(){
+    const list=parsed();const valid=list.filter(x=>x.valid);
+    const preview=el('fenixImportPreview');if(!preview)return;
+    const safe=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    preview.innerHTML='<table><thead><tr><th>Modelo</th><th>Quantidade</th><th>Preço unitário</th><th>Conferência</th></tr></thead><tbody>'+list.slice(0,100).map(x=>`<tr><td>${safe(x.model)}</td><td>${safe(x.quantity)}</td><td>${Number.isFinite(x.price)?x.price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Inválido'}</td><td>${x.valid?'OK':'Revisar'}</td></tr>`).join('')+'</tbody></table>';
+    status(`${valid.length} aparelho(s) válido(s) de ${list.length}. ${list.length>100?'Prévia limitada a 100 linhas.':''}`);
+    el('fenixImportApply').disabled=!valid.length||valid.length!==list.length;
+  }
+  async function loadFile(file){
+    if(!file)return;
+    if(file.size>8*1024*1024)throw Error('Arquivo muito grande (máximo 8 MB).');
+    if(!/\.(csv|xlsx|xls)$/i.test(file.name))throw Error('Selecione um CSV ou Excel.');
+    if(typeof XLSX==='undefined')throw Error('Biblioteca de leitura indisponível. Atualize a página.');
+    const book=XLSX.read(await file.arrayBuffer(),{type:'array',raw:false});
+    const sheet=book.Sheets[book.SheetNames[0]];
+    const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',blankrows:false});
+    if(matrix.length<2)throw Error('Não encontrei linhas de aparelhos no arquivo.');
+    headers=matrix[0].map(String);
+    rows=matrix.slice(1).filter(r=>r.some(v=>String(v).trim())).slice(0,500);
+    if(!headers.length)throw Error('Arquivo sem cabeçalho.');
+    choose('fenixImportModel',best(['modelo','aparelho','produto','descricao','nome']));
+    choose('fenixImportPrice',best(['preco a vista','valor a vista','preco unitario','valor unitario','preco','valor']));
+    choose('fenixImportQty',best(['quantidade','qtd','qtde']),true);
+    el('fenixDeviceMapping').classList.remove('hidden');
+    renderPreview();
+  }
+  document.addEventListener('change',async e=>{
+    if(e.target.id!=='fenixDeviceCsv')return;
+    try{await loadFile(e.target.files?.[0]);}catch(err){el('fenixDeviceMapping').classList.add('hidden');status(err.message);}
+  });
+  document.addEventListener('click',e=>{
+    if(e.target.id!=='fenixImportApply')return;
+    const items=parsed();
+    if(!items.length||items.some(x=>!x.valid))return status('Revise as colunas e todos os preços antes de importar.');
+    if(!confirm(`Adicionar ${items.length} item(ns) à Nova Proposta? Os preços serão tratados como valores totais unitários.`))return;
+    const installments=Number(el('fenixImportInstallments').value);
+    items.forEach(i=>{
+      const total=Math.round(i.price*100);
+      state.productItems.push({uid:crypto.randomUUID(),productId:null,category:'aparelho',name:'Aparelho',variant:i.model,
+        priceCents:Math.round(total/installments),benefits:[],type:'new',quantity:i.quantity,
+        currentValueCents:0,m:null,countsAsRevenue:false,deviceTotalCents:total,
+        deviceInstallments:installments,deviceInstallmentCents:Math.round(total/installments)});
+    });
+    renderProducts();updateCalc();showView('calculatorView');
+    toast(`${items.length} aparelho(s) importado(s). Confira os valores antes de salvar.`, 'success');
+  });
+})();

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fênix One — Equipe Fênix</title>
   <meta name="description" content="Sistema comercial inteligente da Equipe Fênix." />
-  <link rel="stylesheet" href="style.css?v=20261020-v20-completo" />
+  <link rel="stylesheet" href="style.css?v=20261021-v22" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
@@ -371,6 +371,23 @@
           <a class="btn btn-primary" href="https://estoqueprox.netlify.app/" target="_blank" rel="noopener noreferrer">Abrir EstoqueProX ↗</a>
           <button id="fenixV20EmbedBtn" type="button" class="btn btn-secondary">Visualizar nesta página</button>
           <p class="fenix-v20-embed-note">Se o site externo bloquear a incorporação, utilize o botão Abrir EstoqueProX.</p>
+          <div class="fenix-import-panel" id="fenixDeviceImport">
+            <h3>Importar aparelhos para a Nova Proposta</h3>
+            <p>Use <strong>Baixar CSV filtrado</strong> no EstoqueProX e importe o arquivo aqui. Confira os dados antes de adicionar à proposta.</p>
+            <label>Arquivo CSV ou Excel do EstoqueProX<input id="fenixDeviceCsv" type="file" accept=".csv,.xlsx,.xls"></label>
+            <div id="fenixDeviceMapping" class="hidden">
+              <div class="fenix-import-mapping">
+                <label>Modelo<select id="fenixImportModel"></select></label>
+                <label>Preço unitário do aparelho<select id="fenixImportPrice"></select></label>
+                <label>Quantidade<select id="fenixImportQty"></select></label>
+                <label>Parcelamento<select id="fenixImportInstallments"><option value="10">10x</option><option value="12">12x</option><option value="24">24x</option></select></label>
+              </div>
+              <p class="fenix-import-warning">O preço informado deve ser o valor <strong>total à vista de cada aparelho</strong>, não o valor da parcela. Confira os itens antes de importar.</p>
+              <div id="fenixImportPreview" class="table-wrap"></div>
+              <button id="fenixImportApply" type="button" class="btn btn-primary">Adicionar aparelhos à Nova Proposta</button>
+            </div>
+            <p id="fenixImportStatus" role="status"></p>
+          </div>
           <div id="fenixV20EmbedArea" class="hidden"><iframe title="EstoqueProX" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:78vh;border:1px solid #e9e2ec;border-radius:14px" ></iframe></div>
         </div>
       </section>
@@ -582,6 +599,6 @@
       <div id="materialContentActions" class="material-content-actions"></div>
     </div>
   </div>
-  <script src="script.js?v=20261021-v21"></script>
+  <script src="script.js?v=20261021-v22"></script>
 </body>
 </html>
